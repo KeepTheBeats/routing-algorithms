@@ -16,14 +16,8 @@ func main() {
 		{10, 7, 3, 5, 0},
 	}
 	net.Nodes = make([]network.Node, len(net.Links))
-
-	var flow network.Flow = network.Flow{
-		Source:      0,
-		Destination: 4,
-	}
-
-	var paths []network.Path
-	paths = network.Shortest(net, flow)
+	var paths [][]network.Path
+	paths = network.Dijkstra(net, 0)
 	fmt.Println(paths)
 
 }
