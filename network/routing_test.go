@@ -256,6 +256,13 @@ func TestShortest(t *testing.T) {
 }
 
 func TestDijkstra(t *testing.T) {
+	var generateExpectedPaths func(Network, int) [][]Path = func(net Network, source int) [][]Path {
+		var expectedPaths [][]Path = make([][]Path, len(net.Nodes))
+		for i := 0; i < len(net.Nodes); i++ {
+			expectedPaths[i] = Shortest(net, Flow{source, i})
+		}
+		return expectedPaths
+	}
 	testCases := []struct {
 		name          string
 		net           Network
@@ -329,6 +336,30 @@ func TestDijkstra(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name:          "one path case3",
+			net:           fakeNetOnePath1(),
+			source:        1,
+			expectedPaths: generateExpectedPaths(fakeNetOnePath1(), 1),
+		},
+		{
+			name:          "one path case4",
+			net:           fakeNetOnePath1(),
+			source:        2,
+			expectedPaths: generateExpectedPaths(fakeNetOnePath1(), 2),
+		},
+		{
+			name:          "one path case5",
+			net:           fakeNetOnePath1(),
+			source:        3,
+			expectedPaths: generateExpectedPaths(fakeNetOnePath1(), 3),
+		},
+		{
+			name:          "one path case6",
+			net:           fakeNetOnePath1(),
+			source:        4,
+			expectedPaths: generateExpectedPaths(fakeNetOnePath1(), 4),
 		},
 		{
 			name:   "two paths case1",
@@ -463,6 +494,36 @@ func TestDijkstra(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:          "two paths case3",
+			net:           fakeNetTwoPaths2(),
+			source:        1,
+			expectedPaths: generateExpectedPaths(fakeNetTwoPaths2(), 1),
+		},
+		{
+			name:          "two paths case4",
+			net:           fakeNetTwoPaths1(),
+			source:        1,
+			expectedPaths: generateExpectedPaths(fakeNetTwoPaths1(), 1),
+		},
+		{
+			name:          "two paths case5",
+			net:           fakeNetTwoPaths1(),
+			source:        2,
+			expectedPaths: generateExpectedPaths(fakeNetTwoPaths1(), 2),
+		},
+		{
+			name:          "two paths case6",
+			net:           fakeNetTwoPaths1(),
+			source:        3,
+			expectedPaths: generateExpectedPaths(fakeNetTwoPaths1(), 3),
+		},
+		{
+			name:          "two paths case7",
+			net:           fakeNetTwoPaths1(),
+			source:        4,
+			expectedPaths: generateExpectedPaths(fakeNetTwoPaths1(), 4),
+		},
 	}
 	for _, testCase := range testCases {
 		t.Logf("test: %s", testCase.name)
@@ -514,5 +575,220 @@ func TestCheckConnected(t *testing.T) {
 		t.Logf("test: %s", testCase.name)
 		actualResult := CheckConnected(testCase.net)
 		assert.Equal(t, testCase.expectedResult, actualResult, fmt.Sprintf("%s: result is not expected", testCase.name))
+	}
+}
+
+func TestFloyd(t *testing.T) {
+	var generateExpectedPaths func(Network) [][][]Path = func(net Network) [][][]Path {
+		expectedPaths := [][][]Path{}
+		for i := 0; i < len(net.Nodes); i++ {
+			expectedPaths = append(expectedPaths, Dijkstra(net, i))
+		}
+		return expectedPaths
+	}
+	testCases := []struct {
+		name          string
+		net           Network
+		expectedPaths [][][]Path
+	}{
+		{
+			name: "one path case1",
+			net:  fakeNetOnePath1(),
+			expectedPaths: [][][]Path{
+				[][]Path{
+					[]Path{
+						Path{
+							Nodes:   []int{0},
+							Latency: 0,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{0, 1},
+							Latency: 2,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{0, 2},
+							Latency: 4,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{0, 2, 3},
+							Latency: 8,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{0, 2, 4},
+							Latency: 7,
+						},
+					},
+				},
+				[][]Path{
+					[]Path{
+						Path{
+							Nodes:   []int{1, 0},
+							Latency: 2,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{1},
+							Latency: 0,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{1, 2},
+							Latency: 3,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{1, 2, 3},
+							Latency: 7,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{1, 2, 4},
+							Latency: 6,
+						},
+					},
+				},
+				[][]Path{
+					[]Path{
+						Path{
+							Nodes:   []int{2, 0},
+							Latency: 4,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{2, 1},
+							Latency: 3,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{2},
+							Latency: 0,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{2, 3},
+							Latency: 4,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{2, 4},
+							Latency: 3,
+						},
+					},
+				},
+				[][]Path{
+					[]Path{
+						Path{
+							Nodes:   []int{3, 2, 0},
+							Latency: 8,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{3, 2, 1},
+							Latency: 7,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{3, 2},
+							Latency: 4,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{3},
+							Latency: 0,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{3, 4},
+							Latency: 5,
+						},
+					},
+				},
+				[][]Path{
+					[]Path{
+						Path{
+							Nodes:   []int{4, 2, 0},
+							Latency: 7,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{4, 2, 1},
+							Latency: 6,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{4, 2},
+							Latency: 3,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{4, 3},
+							Latency: 5,
+						},
+					},
+					[]Path{
+						Path{
+							Nodes:   []int{4},
+							Latency: 0,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:          "one path case2",
+			net:           fakeNetOnePath2(),
+			expectedPaths: generateExpectedPaths(fakeNetOnePath2()),
+		},
+		{
+			name:          "two paths case1",
+			net:           fakeNetTwoPaths1(),
+			expectedPaths: generateExpectedPaths(fakeNetTwoPaths1()),
+		},
+		{
+			name:          "two paths case2",
+			net:           fakeNetTwoPaths2(),
+			expectedPaths: generateExpectedPaths(fakeNetTwoPaths2()),
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Logf("test: %s", testCase.name)
+		actualPaths := Floyd(testCase.net)
+		if len(testCase.expectedPaths) != len(actualPaths) {
+			t.Errorf("Fail!! %s: lengths are unequal", testCase.name)
+		} else {
+			for i := 0; i < len(testCase.net.Nodes); i++ {
+				if len(testCase.expectedPaths[i]) != len(actualPaths[i]) {
+					t.Errorf("Fail!! %s: lengths of paths from %d are unequal", testCase.name, i)
+				} else {
+					for j := 0; j < len(testCase.net.Nodes); j++ {
+						assert.ElementsMatch(t, testCase.expectedPaths[i][j], actualPaths[i][j], fmt.Sprintf("%s, paths from node %d to node %d is not expected", testCase.name, i, j))
+					}
+				}
+			}
+		}
 	}
 }

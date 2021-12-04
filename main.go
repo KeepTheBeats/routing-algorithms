@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-
 	"r2tdsdn-configuration/network"
 )
 
@@ -16,8 +15,18 @@ func main() {
 		{10, 7, 3, 5, 0},
 	}
 	net.Nodes = make([]network.Node, len(net.Links))
-	var paths [][]network.Path
-	paths = network.Dijkstra(net, 0)
-	fmt.Println(paths)
-
+	var paths [][][]network.Path
+	paths = network.Floyd(net)
+	for i := 0; i < len(paths); i++ {
+		for j := 0; j < len(paths); j++ {
+			fmt.Println(paths[i][j])
+		}
+		fmt.Println()
+	}
+	// var paths [][]network.Path
+	// paths = network.Dijkstra(net, 4)
+	// for i := 0; i < len(paths); i++ {
+	// 	fmt.Println(paths[i])
+	// }
+	// fmt.Println()
 }

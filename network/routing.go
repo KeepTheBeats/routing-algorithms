@@ -1,6 +1,6 @@
 package network
 
-// shortest paths through
+// shortest paths through dfs
 func Shortest(net Network, flow Flow) []Path {
 	var results []Path
 
@@ -63,6 +63,7 @@ func Shortest(net Network, flow Flow) []Path {
 	return results
 }
 
+// shortest paths through Dijkstra
 func Dijkstra(net Network, source int) [][]Path {
 	n := len(net.Nodes)
 	var results [][]Path = make([][]Path, n)
@@ -189,4 +190,76 @@ func CheckConnected(net Network) bool {
 		}
 	}
 	return cnt == 1
+}
+
+// shortest paths through Floyd
+func Floyd(net Network) [][][]Path {
+	n := len(net.Nodes)
+	var paths [][][]Path = make([][][]Path, n)
+	for i := 0; i < n; i++ {
+		paths[i] = make([][]Path, n)
+	}
+
+	// init
+	for i := 0; i < n; i++ {
+		for j := 0; j < n; j++ {
+			if i == j {
+				paths[i][j] = []Path{
+					{
+						Nodes:   []int{i},
+						Latency: 0,
+					},
+				}
+				continue
+			}
+			if net.Links[i][j] > 0 {
+				paths[i][j] = []Path{
+					{
+						Nodes:   []int{i, j},
+						Latency: net.Links[i][j],
+					},
+				}
+			}
+		}
+	}
+
+	// Floyd, try every node as the relay node
+	for relay := 0; relay < n; relay++ {
+		for i := 0; i < n; i++ {
+			for j := 0; j < n; j++ {
+				if relay == i || relay == j {
+					continue // no need to relay
+				}
+				if len(paths[i][relay]) == 0 || len(paths[relay][j]) == 0 {
+					continue // no paths for relay
+				}
+				if len(paths[i][j]) == 0 || paths[i][j][0].Latency > paths[i][relay][0].Latency+paths[relay][j][0].Latency {
+					paths[i][j] = relayPaths(paths, i, j, relay)
+				} else if paths[i][j][0].Latency == paths[i][relay][0].Latency+paths[relay][j][0].Latency {
+					paths[i][j] = append(paths[i][j], relayPaths(paths, i, j, relay)...)
+				}
+			}
+		}
+	}
+	return paths
+}
+
+// generate the relay paths from i to j
+func relayPaths(paths [][][]Path, i, j, relay int) []Path {
+	var newPaths []Path
+	var newLatency int = paths[i][relay][0].Latency + paths[relay][j][0].Latency
+	for _, fore := range paths[i][relay] {
+		for _, back := range paths[relay][j] {
+			foreNodes := make([]int, len(fore.Nodes))
+			backNodes := make([]int, len(back.Nodes))
+			copy(foreNodes, fore.Nodes)
+			copy(backNodes, back.Nodes)
+			newPath := Path{
+				Nodes:   append(foreNodes[:len(foreNodes)-1], backNodes...),
+				Latency: newLatency,
+			}
+			newPaths = append(newPaths, newPath)
+		}
+	}
+	return newPaths
 }
