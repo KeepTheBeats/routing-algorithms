@@ -259,7 +259,7 @@ func TestDijkstra(t *testing.T) {
 	var generateExpectedPaths func(Network, int) [][]Path = func(net Network, source int) [][]Path {
 		var expectedPaths [][]Path = make([][]Path, len(net.Nodes))
 		for i := 0; i < len(net.Nodes); i++ {
-			expectedPaths[i] = Shortest(net, Flow{source, i})
+			expectedPaths[i] = Shortest(net, Flow{Source: source, Destination: i})
 		}
 		return expectedPaths
 	}

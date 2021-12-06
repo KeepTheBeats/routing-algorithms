@@ -10,8 +10,9 @@ type Node struct {
 }
 
 type Flow struct {
-	Source      int
-	Destination int
+	Source          int
+	Destination     int
+	DesirableJitter int
 }
 
 type Path struct {
