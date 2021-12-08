@@ -1,4 +1,4 @@
-module r2tdsdn-configuration
+module routing-algorithms
 
 go 1.17
 

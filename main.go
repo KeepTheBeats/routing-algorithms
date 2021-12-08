@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"r2tdsdn-configuration/network"
+	"routing-algorithms/network"
 )
 
 func main() {

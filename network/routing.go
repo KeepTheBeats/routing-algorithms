@@ -155,7 +155,7 @@ func findPaths(node int, source int, predecessors [][]int, latency int) []Path {
 	return paths
 }
 
-// usr Disjoint Set to check whether a network is connected
+// use Disjoint Set to check whether a network is connected
 func CheckConnected(net Network) bool {
 	var leaders []int = make([]int, len(net.Nodes))
 
