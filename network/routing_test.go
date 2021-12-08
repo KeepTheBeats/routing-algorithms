@@ -83,6 +83,19 @@ func fakeUnconnectedNet2() Network {
 	return net
 }
 
+func fakeUnconnectedNet3() Network {
+	var net Network
+	net.Links = [][]int{
+		{0, 2, 4, -1, 10},
+		{2, 0, 3, -1, 7},
+		{4, 3, 0, -1, 3},
+		{-1, -1, -1, 0, -1},
+		{10, 7, 3, -1, 0},
+	}
+	net.Nodes = make([]Node, len(net.Links))
+	return net
+}
+
 func TestShortest(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -245,6 +258,33 @@ func TestShortest(t *testing.T) {
 					Latency: 5,
 				},
 			},
+		},
+		{
+			name: "case11",
+			net:  fakeUnconnectedNet1(),
+			flow: Flow{
+				Source:      1,
+				Destination: 4,
+			},
+			expectedPaths: []Path{},
+		},
+		{
+			name: "case12",
+			net:  fakeUnconnectedNet1(),
+			flow: Flow{
+				Source:      0,
+				Destination: 2,
+			},
+			expectedPaths: []Path{},
+		},
+		{
+			name: "case13",
+			net:  fakeUnconnectedNet3(),
+			flow: Flow{
+				Source:      1,
+				Destination: 3,
+			},
+			expectedPaths: []Path{},
 		},
 	}
 
@@ -524,6 +564,18 @@ func TestDijkstra(t *testing.T) {
 			source:        4,
 			expectedPaths: generateExpectedPaths(fakeNetTwoPaths1(), 4),
 		},
+		{
+			name:          "unconnected case1",
+			net:           fakeUnconnectedNet3(),
+			source:        2,
+			expectedPaths: generateExpectedPaths(fakeUnconnectedNet3(), 2),
+		},
+		{
+			name:          "unconnected case2",
+			net:           fakeUnconnectedNet2(),
+			source:        0,
+			expectedPaths: generateExpectedPaths(fakeUnconnectedNet2(), 0),
+		},
 	}
 	for _, testCase := range testCases {
 		t.Logf("test: %s", testCase.name)
@@ -552,6 +604,11 @@ func TestCheckConnected(t *testing.T) {
 		{
 			name:           "unconnected case2",
 			net:            fakeUnconnectedNet2(),
+			expectedResult: false,
+		},
+		{
+			name:           "unconnected case3",
+			net:            fakeUnconnectedNet3(),
 			expectedResult: false,
 		},
 		{
@@ -771,6 +828,21 @@ func TestFloyd(t *testing.T) {
 			name:          "two paths case2",
 			net:           fakeNetTwoPaths2(),
 			expectedPaths: generateExpectedPaths(fakeNetTwoPaths2()),
+		},
+		{
+			name:          "unconnected case1",
+			net:           fakeUnconnectedNet1(),
+			expectedPaths: generateExpectedPaths(fakeUnconnectedNet1()),
+		},
+		{
+			name:          "unconnected case2",
+			net:           fakeUnconnectedNet2(),
+			expectedPaths: generateExpectedPaths(fakeUnconnectedNet2()),
+		},
+		{
+			name:          "unconnected case3",
+			net:           fakeUnconnectedNet3(),
+			expectedPaths: generateExpectedPaths(fakeUnconnectedNet3()),
 		},
 	}
 

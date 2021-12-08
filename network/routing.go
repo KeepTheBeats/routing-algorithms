@@ -98,6 +98,9 @@ func Dijkstra(net Network, source int) [][]Path {
 				minNode = i
 			}
 		}
+		if minNode == -1 { // all of rest nodes are unreachable
+			break
+		}
 		// shortest paths to miniNode is finded
 		visited[minNode] = true
 		paths := findPaths(minNode, source, predecessors, latencies[minNode])
@@ -262,4 +265,9 @@ func relayPaths(paths [][][]Path, i, j, relay int) []Path {
 		}
 	}
 	return newPaths
+}
+
+// k-shortest paths through Yen's Algorithm
+func KShortest(net Network, flow Flow) []Path {
+	return []Path{}
 }
