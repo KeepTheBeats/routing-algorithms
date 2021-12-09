@@ -96,6 +96,20 @@ func fakeUnconnectedNet3() Network {
 	return net
 }
 
+func fakeDirectedNet1() Network {
+	var net Network
+	net.Links = [][]int{
+		{0, 3, 2, -1, -1, -1},
+		{-1, 0, -1, 4, -1, -1},
+		{-1, 1, 0, 2, 3, -1},
+		{-1, -1, -1, 0, 2, 1},
+		{-1, -1, -1, -1, 0, 2},
+		{-1, -1, -1, -1, -1, 0},
+	}
+	net.Nodes = make([]Node, len(net.Links))
+	return net
+}
+
 func TestShortest(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -863,4 +877,196 @@ func TestFloyd(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestKShortest(t *testing.T) {
+	testCases := []struct {
+		name          string
+		net           Network
+		flow          Flow
+		k             int
+		expectedPaths []Path
+	}{
+		{
+			name: "directed graph case1",
+			net:  fakeDirectedNet1(),
+			flow: Flow{Source: 0, Destination: 5},
+			k:    3,
+			expectedPaths: []Path{
+				{
+					Nodes:   []int{0, 2, 3, 5},
+					Latency: 5,
+				},
+				{
+					Nodes:   []int{0, 2, 4, 5},
+					Latency: 7,
+				},
+				{
+					Nodes:   []int{0, 1, 3, 5},
+					Latency: 8,
+				},
+			},
+		},
+		{
+			name: "undirected graph case1",
+			net:  fakeNetTwoPaths1(),
+			flow: Flow{Source: 0, Destination: 3},
+			k:    3,
+			expectedPaths: []Path{
+				{
+					Nodes:   []int{0, 2, 3},
+					Latency: 8,
+				},
+				{
+					Nodes:   []int{0, 1, 2, 3},
+					Latency: 8,
+				},
+				{
+					Nodes:   []int{0, 2, 4, 3},
+					Latency: 12,
+				},
+			},
+		},
+		{
+			name: "undirected graph case2",
+			net:  fakeNetTwoPaths1(),
+			flow: Flow{Source: 0, Destination: 3},
+			k:    2,
+			expectedPaths: []Path{
+				{
+					Nodes:   []int{0, 2, 3},
+					Latency: 8,
+				},
+				{
+					Nodes:   []int{0, 1, 2, 3},
+					Latency: 8,
+				},
+			},
+		},
+		{
+			name: "undirected graph case3",
+			net:  fakeNetOnePath1(),
+			flow: Flow{Source: 0, Destination: 4},
+			k:    4,
+			expectedPaths: []Path{
+				{
+					Nodes:   []int{0, 2, 4},
+					Latency: 7,
+				},
+				{
+					Nodes:   []int{0, 1, 2, 4},
+					Latency: 8,
+				},
+				{
+					Nodes:   []int{0, 1, 4},
+					Latency: 9,
+				},
+				{
+					Nodes:   []int{0, 4},
+					Latency: 10,
+				},
+			},
+		},
+		{
+			name:          "undirected graph case4",
+			net:           fakeNetOnePath1(),
+			flow:          Flow{Source: 0, Destination: 4},
+			k:             4,
+			expectedPaths: KShortestDFS(fakeNetOnePath1(), Flow{Source: 0, Destination: 4}, 4),
+		},
+		{
+			name:          "undirected graph case5",
+			net:           fakeNetOnePath1(),
+			flow:          Flow{Source: 2, Destination: 4},
+			k:             4,
+			expectedPaths: KShortestDFS(fakeNetOnePath1(), Flow{Source: 2, Destination: 4}, 4),
+		},
+		{
+			name:          "undirected graph case6",
+			net:           fakeNetOnePath1(),
+			flow:          Flow{Source: 2, Destination: 4},
+			k:             10,
+			expectedPaths: KShortestDFS(fakeNetOnePath1(), Flow{Source: 2, Destination: 4}, 10),
+		},
+		{
+			name:          "undirected graph case7",
+			net:           fakeNetTwoPaths1(),
+			flow:          Flow{Source: 1, Destination: 3},
+			k:             10,
+			expectedPaths: KShortestDFS(fakeNetTwoPaths1(), Flow{Source: 1, Destination: 3}, 10),
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Logf("test: %s", testCase.name)
+		actualPaths := KShortest(testCase.net, testCase.flow, testCase.k)
+		assert.Equal(t, testCase.expectedPaths, actualPaths, fmt.Sprintf("%s: result is not expected", testCase.name))
+	}
+
+	var testAllFlows func(Network, int) = func(net Network, k int) {
+		fmt.Printf("testAllFlows\n")
+		for source := 0; source < len(net.Nodes); source++ {
+			for destination := 0; destination < len(net.Nodes); destination++ {
+				if source == destination {
+					continue
+				}
+				flow := Flow{Source: source, Destination: destination}
+				dfsPaths := KShortestDFS(net, flow, k)
+				yenPaths := KShortest(net, flow, k)
+				// if len(dfsPaths) > 6 {
+				// 	fmt.Printf("dfsPaths:\n%v\n\n", dfsPaths)
+				// 	fmt.Printf("yenPaths:\n%v\n\n", yenPaths)
+				// }
+				if len(dfsPaths) != len(yenPaths) {
+					t.Errorf("\nnet:\n%v\n\nflow: %v\n\nk: %d\n\nFail!!: lengths of dfsPaths (%d) and yenPaths (%d) are unequal", net, flow, k, len(dfsPaths), len(yenPaths))
+				}
+
+				for i := 0; i < len(dfsPaths); i++ {
+					if dfsPaths[i].Latency != yenPaths[i].Latency {
+						t.Errorf("\nnet:\n%v\n\nflow: %v\n\nk: %d\n\nFail!!: i: %d latency is not equal\n\ndfsPaths:\n%v\n\nyenPaths:\n%v\n\n", net, flow, k, i, dfsPaths, yenPaths)
+					}
+					if len(dfsPaths[i].Nodes) != len(yenPaths[i].Nodes) {
+						t.Errorf("\nnet:\n%v\n\nflow: %v\n\nk: %d\n\nFail!!: i: %d len(Nodes) is not equal\n\ndfsPaths:\n%v\n\nyenPaths:\n%v\n\n", net, flow, k, i, dfsPaths, yenPaths)
+					}
+				}
+
+				dfsGroups := map[[2]int][]Path{}
+				yenGroups := map[[2]int][]Path{}
+
+				for _, path := range dfsPaths {
+					dfsGroups[[2]int{path.Latency, len(path.Nodes)}] = append(dfsGroups[[2]int{path.Latency, len(path.Nodes)}], path)
+				}
+				for _, path := range yenPaths {
+					yenGroups[[2]int{path.Latency, len(path.Nodes)}] = append(yenGroups[[2]int{path.Latency, len(path.Nodes)}], path)
+				}
+
+				if len(dfsGroups) != len(yenGroups) {
+					t.Errorf("\nnet:\n%v\n\nflow: %v\n\nk: %d\n\nFail!!: lengths of dfsGroups (%d) and yenGroups (%d) are unequal", net, flow, k, len(dfsGroups), len(yenGroups))
+				} else {
+					for key, dfsGroup := range dfsGroups {
+						if yenGroup, exist := yenGroups[key]; !exist {
+							t.Errorf("\nnet:\n%v\n\nflow: %v\n\nk: %d\n\nFail!!: key: %v in dfsGroups does not exist in yenGroups", net, flow, k, key)
+						} else {
+							assert.ElementsMatch(t, dfsGroup, yenGroup, fmt.Sprintf("\nnet:\n%v\n\nflow: %v\n\nk: %d\n\ndfsGroup:\n%v\n\nyenGroup:\n%v\n\ndfsPaths:\n%v\n\nyenPaths:\n%v\n\n", net, flow, k, dfsGroup, yenGroup, dfsPaths, yenPaths))
+							// still have deficiency, when more than one paths tie for the number k shortest path, dfs and yen may choose different paths, should notice this. For this condition, can print dfsPaths and yenPaths and compare them manually.
+						}
+					}
+				}
+			}
+		}
+	}
+	testAllFlows(fakeNetOnePath1(), 4)
+	testAllFlows(fakeNetOnePath1(), 6)
+	testAllFlows(fakeNetOnePath1(), 7)
+	testAllFlows(fakeNetOnePath2(), 1)
+	testAllFlows(fakeNetOnePath2(), 2)
+	testAllFlows(fakeNetOnePath2(), 3)
+	testAllFlows(fakeNetOnePath2(), 5)
+	testAllFlows(fakeNetOnePath2(), 10)
+	testAllFlows(fakeNetTwoPaths1(), 1)
+	testAllFlows(fakeNetTwoPaths1(), 3)
+	testAllFlows(fakeNetTwoPaths1(), 13)
+	testAllFlows(fakeNetTwoPaths1(), 15)
+	testAllFlows(fakeNetTwoPaths2(), 5)
+	testAllFlows(fakeNetTwoPaths2(), 10)
 }

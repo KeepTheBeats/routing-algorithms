@@ -268,6 +268,251 @@ func relayPaths(paths [][][]Path, i, j, relay int) []Path {
 }
 
 // k-shortest paths through Yen's Algorithm
-func KShortest(net Network, flow Flow) []Path {
-	return []Path{}
+func KShortest(net Network, flow Flow, k int) []Path {
+	var A []Path
+	var B pathHeap
+	if k == 0 {
+		return A
+	}
+	shortest := Dijkstra(net, flow.Source)[flow.Destination]
+	if len(shortest) == 0 { // unreachable
+		return A
+	}
+
+	A = append(A, minPath(shortest))
+	for len(A) < k {
+		prevPath := A[len(A)-1].Nodes
+		// The spur node ranges from the first node to the next to last node in the previous path.
+		for i := 0; i < len(prevPath)-1; i++ {
+			spurNode := prevPath[i]
+			rootPath := prevPath[:i+1]
+
+			deletedLinks := make(map[[2]int]int) // map: tail, head -> latency.
+
+			// Remove the links that are part of the previous shortest paths which share the same root path.
+			for j := 0; j < len(A); j++ {
+				if len(A[j].Nodes) > i && sliceEqual(A[j].Nodes[:i+1], rootPath) {
+					if _, exist := deletedLinks[[2]int{A[j].Nodes[i], A[j].Nodes[i+1]}]; !exist {
+						deletedLinks[[2]int{A[j].Nodes[i], A[j].Nodes[i+1]}] = net.Links[A[j].Nodes[i]][A[j].Nodes[i+1]]
+						net.Links[A[j].Nodes[i]][A[j].Nodes[i+1]] = -1
+					}
+				}
+			}
+
+			// Remove the nodes in rootPath except spurNode, make them unreachable.
+			for j := 0; j < len(rootPath)-1; j++ {
+				for head := 0; head < len(net.Nodes); head++ {
+					if _, exist := deletedLinks[[2]int{head, rootPath[j]}]; !exist {
+						deletedLinks[[2]int{head, rootPath[j]}] = net.Links[head][rootPath[j]]
+						net.Links[head][rootPath[j]] = -1
+					}
+				}
+			}
+
+			// Calculate the spur path from the spur node to the sink.
+			spurPaths := Dijkstra(net, spurNode)[flow.Destination]
+
+			// Add back the edges and nodes that were removed from the graph.
+			for headTail, latency := range deletedLinks {
+				net.Links[headTail[0]][headTail[1]] = latency
+			}
+
+			if len(spurPaths) > 0 { // spur path is found
+				// put together rootPath and spurPath to build totalPath
+				spurPath := minPath(spurPaths).Nodes
+				var rootPathCopy []int = make([]int, len(rootPath))
+				copy(rootPathCopy, rootPath)
+				totalPath := append(rootPathCopy[:len(rootPathCopy)-1], spurPath...)
+
+				var latency int
+				for j := 0; j < len(totalPath)-1; j++ {
+					latency += net.Links[totalPath[j]][totalPath[j+1]]
+				}
+				totalPathWithLatency := Path{
+					Nodes:   totalPath,
+					Latency: latency,
+				}
+
+				// insert totalPath to B
+				if !B.contain(totalPathWithLatency) {
+					B.insert(totalPathWithLatency)
+				}
+			}
+		}
+		// no more paths
+		if len(B) == 0 {
+			break
+		}
+
+		// let lowest cost path in B become the k-shortest path.
+		// minHeap can guarantee that B[0] has the lowest cost
+		A = append(A, B[0])
+
+		// Remove the lowest cost path in B
+		B.pop()
+	}
+
+	return A
+}
+
+// whether two slices are equal
+func sliceEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// minHeap for Path
+type pathHeap []Path
+
+// adjust minHeap from up to down
+func (h pathHeap) shiftDown(start, end int) {
+	var dad int = start
+	var son int = dad*2 + 1
+
+	for son <= end { // only compare when son is in range
+		if son+1 <= end && pathLess(h[son+1], h[son]) { // choose the bigger son
+			son++
+		}
+		if !pathLess(h[son], h[dad]) {
+			break // adjustment is finished
+		}
+		h[dad], h[son] = h[son], h[dad]
+		dad = son
+		son = dad*2 + 1
+	}
+	return
+}
+
+// adjust minHeap from down to up
+func (h pathHeap) shiftUp(start int) {
+	var son int = start
+	var dad int = (son - 1) / 2
+	for dad >= 0 {
+		if !pathLess(h[son], h[dad]) {
+			break // // adjustment is finished
+		}
+		h[dad], h[son] = h[son], h[dad]
+		son = dad
+		dad = (son - 1) / 2
+	}
+	return
+}
+
+// build a minHeap from a Path slice
+func buildHeap(h []Path) {
+	// init heap from the last non-leaf node
+	for i := len(h)/2 - 1; i >= 0; i-- {
+		pathHeap(h).shiftDown(i, len(h)-1)
+	}
+	return
+}
+
+// insert p to h following the rules of minHeap
+func (h *pathHeap) insert(p Path) {
+	*h = append(*h, p)     // insert
+	h.shiftUp(len(*h) - 1) // adjust
+	return
+}
+
+// remove the minimum element
+func (h *pathHeap) pop() {
+	(*h)[0] = (*h)[len(*h)-1] // move the last element to the first
+	*h = (*h)[:len(*h)-1]     // remove the last element
+	h.shiftDown(0, len(*h)-1) // adjust
+	return
+}
+
+// whether h contains p
+func (h pathHeap) contain(p Path) bool {
+	for i := 0; i < len(h); i++ {
+		if sliceEqual(h[i].Nodes, p.Nodes) {
+			return true
+		}
+	}
+	return false
+}
+
+// whether p1 < p2
+func pathLess(p1, p2 Path) bool {
+	if p1.Latency < p2.Latency {
+		return true
+	}
+	if p1.Latency > p2.Latency {
+		return false
+	}
+	return len(p1.Nodes) < len(p2.Nodes)
+}
+
+// return the shortest path in a Path slice
+func minPath(paths []Path) Path {
+	var min Path
+	if len(paths) == 0 {
+		return min
+	}
+	min = paths[0]
+	for i := 1; i < len(paths); i++ {
+		if pathLess(paths[i], min) {
+			min = paths[i]
+		}
+	}
+	return min
+}
+
+// k-shortest paths through dfs (can make test cases for Yen's Algorithm)
+func KShortestDFS(net Network, flow Flow, k int) []Path {
+	var paths pathHeap
+
+	n := len(net.Nodes)
+	var visited []bool = make([]bool, n) // nodes that are visited
+	var path []int                       // record of current path
+	var latency int                      // latency of current path
+
+	visited[flow.Source] = true
+	path = append(path, flow.Source)
+
+	// use dfs find all paths from source to destination
+	var dfs func()
+	dfs = func() {
+		if path[len(path)-1] == flow.Destination { // find a path
+			newPath := Path{
+				Nodes:   make([]int, len(path)),
+				Latency: latency,
+			}
+			copy(newPath.Nodes, path)
+			paths.insert(newPath)
+			return
+		}
+		for i := 0; i < n; i++ {
+			nextLatency := net.Links[path[len(path)-1]][i]
+			if nextLatency < 0 { // no link
+				continue
+			}
+			if visited[i] {
+				continue
+			}
+			visited[i] = true
+			path = append(path, i)
+			latency += nextLatency
+			dfs()
+			path = path[:len(path)-1]
+			visited[i] = false
+			latency -= nextLatency
+		}
+	}
+	dfs()
+
+	// pick the k-shortest paths
+	var shortestKPaths []Path
+	for i := 0; i < k && len(paths) > 0; i++ {
+		shortestKPaths = append(shortestKPaths, paths[0])
+		paths.pop()
+	}
+	return shortestKPaths
 }
