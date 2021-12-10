@@ -2,6 +2,7 @@ package network
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,6 +18,13 @@ func fakeNetOnePath1() Network {
 		{10, 7, 3, 5, 0},
 	}
 	net.Nodes = make([]Node, len(net.Links))
+	net.Jitters = [][]int{
+		{0, 3, 4, 0, 6},
+		{3, 0, 0, 10, 10},
+		{4, 0, 0, 4, 9},
+		{0, 10, 4, 0, 6},
+		{6, 10, 9, 6, 0},
+	}
 	return net
 }
 
@@ -29,6 +37,12 @@ func fakeNetOnePath2() Network {
 		{2, 4, 7, 0},
 	}
 	net.Nodes = make([]Node, len(net.Links))
+	net.Jitters = [][]int{
+		{0, 1, 2, 0},
+		{1, 0, 3, 3},
+		{2, 3, 0, 9},
+		{0, 3, 9, 0},
+	}
 	return net
 }
 
@@ -42,6 +56,13 @@ func fakeNetTwoPaths1() Network {
 		{10, 7, 3, 5, 0},
 	}
 	net.Nodes = make([]Node, len(net.Links))
+	net.Jitters = [][]int{
+		{0, 2, 8, 2, 40},
+		{2, 0, 10, 17, 8},
+		{8, 10, 0, 9, 14},
+		{2, 17, 9, 0, 16},
+		{40, 8, 14, 16, 0},
+	}
 	return net
 }
 
@@ -54,6 +75,12 @@ func fakeNetTwoPaths2() Network {
 		{2, 4, 1, 0},
 	}
 	net.Nodes = make([]Node, len(net.Links))
+	net.Jitters = [][]int{
+		{0, 10, 18, 4},
+		{10, 0, 13, 11},
+		{18, 13, 0, 8},
+		{4, 11, 8, 0},
+	}
 	return net
 }
 
@@ -67,6 +94,13 @@ func fakeUnconnectedNet1() Network {
 		{10, -1, -1, -1, 0},
 	}
 	net.Nodes = make([]Node, len(net.Links))
+	net.Jitters = [][]int{
+		{0, 4, 1, 9, 4},
+		{4, 0, 16, 7, 18},
+		{1, 16, 0, 15, 16},
+		{9, 7, 15, 0, 7},
+		{4, 18, 16, 7, 0},
+	}
 	return net
 }
 
@@ -80,6 +114,13 @@ func fakeUnconnectedNet2() Network {
 		{10, -1, -1, -1, 0},
 	}
 	net.Nodes = make([]Node, len(net.Links))
+	net.Jitters = [][]int{
+		{0, 14, 2, 9, 7},
+		{14, 0, 9, 15, 7},
+		{2, 9, 0, 16, 1},
+		{9, 15, 16, 0, 3},
+		{7, 7, 1, 3, 0},
+	}
 	return net
 }
 
@@ -93,6 +134,13 @@ func fakeUnconnectedNet3() Network {
 		{10, 7, 3, -1, 0},
 	}
 	net.Nodes = make([]Node, len(net.Links))
+	net.Jitters = [][]int{
+		{0, 2, 12, 17, 14},
+		{2, 0, 5, 19, 11},
+		{12, 5, 0, 0, 1},
+		{17, 19, 0, 0, 6},
+		{14, 11, 1, 6, 0},
+	}
 	return net
 }
 
@@ -107,6 +155,14 @@ func fakeDirectedNet1() Network {
 		{-1, -1, -1, -1, -1, 0},
 	}
 	net.Nodes = make([]Node, len(net.Links))
+	net.Jitters = [][]int{
+		{0, 10, 10, 1, 9, 6},
+		{4, 0, 7, 1, 8, 2},
+		{1, 10, 0, 6, 5, 7},
+		{0, 3, 6, 0, 2, 7},
+		{4, 9, 5, 1, 0, 4},
+		{8, 2, 5, 8, 3, 0},
+	}
 	return net
 }
 
@@ -1069,4 +1125,228 @@ func TestKShortest(t *testing.T) {
 	testAllFlows(fakeNetTwoPaths1(), 15)
 	testAllFlows(fakeNetTwoPaths2(), 5)
 	testAllFlows(fakeNetTwoPaths2(), 10)
+}
+
+func TestInnerR2tdsdnRel(t *testing.T) {
+	testCases := []struct {
+		name           string
+		path           Path
+		switchRel      float64
+		linkRel        float64
+		expectedResult float64
+	}{
+		{
+			name:           "case1",
+			path:           Path{Nodes: []int{1, 4, 0, 2, 3}, Latency: 25},
+			switchRel:      0.8,
+			linkRel:        0.2,
+			expectedResult: math.Pow(0.8, 5) * math.Pow(0.2, 4),
+		},
+		{
+			name:           "case2",
+			path:           Path{Nodes: []int{1, 2, 0, 4, 3}, Latency: 24},
+			switchRel:      0.8,
+			linkRel:        0.2,
+			expectedResult: math.Pow(0.8, 5) * math.Pow(0.2, 4),
+		},
+		{
+			name:           "case3",
+			path:           Path{Nodes: []int{1, 6, 8, 4, 3, 8}, Latency: 15},
+			switchRel:      0.5,
+			linkRel:        0.3,
+			expectedResult: math.Pow(0.5, 6) * math.Pow(0.3, 5),
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Logf("test: %s", testCase.name)
+		actualResult := r2tdsdnRel(testCase.path, testCase.switchRel, testCase.linkRel)
+		assert.Equal(t, testCase.expectedResult, actualResult, fmt.Sprintf("%s: result is not expected", testCase.name))
+	}
+}
+
+func TestInnerR2tdsdnJitter(t *testing.T) {
+	testCases := []struct {
+		name           string
+		net            Network
+		path           Path
+		expectedResult int
+	}{
+		{
+			name:           "case1",
+			net:            fakeNetOnePath1(),
+			path:           Path{Nodes: []int{1, 2, 3}, Latency: 7},
+			expectedResult: 4,
+		},
+		{
+			name:           "case2",
+			net:            fakeNetOnePath1(),
+			path:           Path{Nodes: []int{1, 0, 2, 3}, Latency: 10},
+			expectedResult: 11,
+		},
+		{
+			name:           "case3",
+			net:            fakeNetOnePath1(),
+			path:           Path{Nodes: []int{1, 4, 2, 3}, Latency: 14},
+			expectedResult: 23,
+		},
+		{
+			name:           "case4",
+			net:            fakeNetTwoPaths1(),
+			path:           Path{Nodes: []int{1, 2, 0, 4, 3}, Latency: 21},
+			expectedResult: 74,
+		},
+		{
+			name:           "case5",
+			net:            fakeNetTwoPaths1(),
+			path:           Path{Nodes: []int{1, 4, 0, 2, 3}, Latency: 25},
+			expectedResult: 65,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Logf("test: %s", testCase.name)
+		actualResult := r2tdsdnJitter(testCase.net, testCase.path)
+		assert.Equal(t, testCase.expectedResult, actualResult, fmt.Sprintf("%s: result is not expected", testCase.name))
+	}
+}
+
+func TestR2tdsdnRouting(t *testing.T) {
+	testCases := []struct {
+		name               string
+		net                Network
+		flow               Flow
+		k                  int
+		switchRel, linkRel float64
+		expectedPaths      []Path
+	}{
+		{
+			name:      "case1",
+			net:       fakeNetOnePath1(),
+			flow:      Flow{Source: 1, Destination: 3, DesirableJitter: 50},
+			k:         10,
+			switchRel: 0.8,
+			linkRel:   0.2,
+			expectedPaths: []Path{
+				Path{Nodes: []int{1, 2, 3}, Latency: 7},
+				Path{Nodes: []int{1, 4, 3}, Latency: 12},
+			},
+		},
+		{
+			name:      "case2",
+			net:       fakeNetOnePath1(),
+			flow:      Flow{Source: 1, Destination: 3, DesirableJitter: 16},
+			k:         10,
+			switchRel: 0.8,
+			linkRel:   0.2,
+			expectedPaths: []Path{
+				Path{Nodes: []int{1, 2, 3}, Latency: 7},
+				Path{Nodes: []int{1, 4, 3}, Latency: 12},
+			},
+		},
+		{
+			name:      "case3",
+			net:       fakeNetOnePath1(),
+			flow:      Flow{Source: 1, Destination: 3, DesirableJitter: 15},
+			k:         10,
+			switchRel: 0.8,
+			linkRel:   0.2,
+			expectedPaths: []Path{
+				Path{Nodes: []int{1, 2, 3}, Latency: 7},
+			},
+		},
+		{
+			name:      "case4",
+			net:       fakeNetOnePath1(),
+			flow:      Flow{Source: 1, Destination: 3, DesirableJitter: 50},
+			k:         4,
+			switchRel: 0.8,
+			linkRel:   0.2,
+			expectedPaths: []Path{
+				Path{Nodes: []int{1, 2, 3}, Latency: 7},
+				Path{Nodes: []int{1, 4, 3}, Latency: 12},
+			},
+		},
+		{
+			name:      "case5",
+			net:       fakeNetOnePath1(),
+			flow:      Flow{Source: 1, Destination: 3, DesirableJitter: 50},
+			k:         3,
+			switchRel: 0.8,
+			linkRel:   0.2,
+			expectedPaths: []Path{
+				Path{Nodes: []int{1, 2, 3}, Latency: 7},
+			},
+		},
+		{
+			name:      "case6",
+			net:       fakeNetTwoPaths1(),
+			flow:      Flow{Source: 0, Destination: 4, DesirableJitter: 50},
+			k:         10,
+			switchRel: 0.6,
+			linkRel:   0.3,
+			expectedPaths: []Path{
+				Path{Nodes: []int{0, 4}, Latency: 10},
+			},
+		},
+		{
+			name:      "case7",
+			net:       fakeNetTwoPaths1(),
+			flow:      Flow{Source: 0, Destination: 4, DesirableJitter: 39},
+			k:         10,
+			switchRel: 0.6,
+			linkRel:   0.3,
+			expectedPaths: []Path{
+				Path{Nodes: []int{0, 2, 4}, Latency: 7},
+				Path{Nodes: []int{0, 1, 4}, Latency: 9},
+			},
+		},
+		{
+			name:      "case8",
+			net:       fakeNetTwoPaths1(),
+			flow:      Flow{Source: 0, Destination: 4, DesirableJitter: 40},
+			k:         3,
+			switchRel: 0.6,
+			linkRel:   0.3,
+			expectedPaths: []Path{
+				Path{Nodes: []int{0, 2, 4}, Latency: 7},
+				Path{Nodes: []int{0, 1, 4}, Latency: 9},
+			},
+		},
+		{
+			name:      "case9",
+			net:       fakeNetTwoPaths1(),
+			flow:      Flow{Source: 0, Destination: 4, DesirableJitter: 21},
+			k:         10,
+			switchRel: 0.6,
+			linkRel:   0.3,
+			expectedPaths: []Path{
+				Path{Nodes: []int{0, 1, 4}, Latency: 9},
+			},
+		},
+		{
+			name:          "case10",
+			net:           fakeNetTwoPaths1(),
+			flow:          Flow{Source: 0, Destination: 4, DesirableJitter: 21},
+			k:             2,
+			switchRel:     0.6,
+			linkRel:       0.3,
+			expectedPaths: []Path{},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Logf("test: %s", testCase.name)
+
+		actualResult, jitters, reliabilities := R2tdsdnRouting(testCase.net, testCase.flow, testCase.k, testCase.switchRel, testCase.linkRel)
+		assert.ElementsMatch(t, testCase.expectedPaths, actualResult, fmt.Sprintf("%s: result is not expected", testCase.name))
+		if len(actualResult) != len(jitters) || len(actualResult) != len(reliabilities) {
+			t.Errorf("Fail!! %s: lengths of actualResult, jitters, reliabilities are unequal", testCase.name)
+		} else {
+			for i := 0; i < len(actualResult); i++ {
+				assert.Equal(t, jitters[i], r2tdsdnJitter(testCase.net, actualResult[i]), fmt.Sprintf("%s: jitters[%d] is not expected", testCase.name, i))
+				assert.Equal(t, reliabilities[i], r2tdsdnRel(actualResult[i], testCase.switchRel, testCase.linkRel), fmt.Sprintf("%s: reliabilities[%d] is not expected", testCase.name, i))
+			}
+		}
+	}
 }

@@ -1,5 +1,12 @@
 package network
 
+import (
+	"fmt"
+	"math"
+	"math/rand"
+	"time"
+)
+
 // shortest paths through dfs
 func Shortest(net Network, flow Flow) []Path {
 	var results []Path
@@ -515,4 +522,147 @@ func KShortestDFS(net Network, flow Flow, k int) []Path {
 		paths.pop()
 	}
 	return shortestKPaths
+}
+
+/*
+routing method in the paper "R2T‑DSDN reliable real‑time distributed controller‑based SDN".
+
+process:
+(1) find the k shortest paths
+(2) discard the paths whose jitter is more than desirable jitter
+(3) choose the paths with the highest reliability
+
+parameters:
+k: the k in k-shortest path algorithm, example in the paper is 15.
+switchRel: reliability of every switch, example in the paper is 0.8.
+linkRel: reliability of every link, example in the paper is 0.2.
+
+I am considering that:
+Jitters of links are from 0ms to 10ms, following Poisson distribution or Normal distribution, end-to-end jitter of a path are the sum of all link jitters. (the paper does not write how to calculate it)
+DesirableJitter of flows are from 10ms to 200ms, following Poisson distribution or Normal distribution..
+*/
+func R2tdsdnRouting(net Network, flow Flow, k int, switchRel, linkRel float64) ([]Path, []int, []float64) {
+	// (1) find the k shortest paths
+	var kPaths []Path = KShortest(net, flow, k)
+
+	// (2) discard the paths whose jitter is more than desirable jitter
+	var desirableJitterPaths []Path
+	for _, path := range kPaths {
+		if r2tdsdnJitter(net, path) <= flow.DesirableJitter {
+			desirableJitterPaths = append(desirableJitterPaths, path)
+		}
+	}
+
+	// (3) choose the paths with the highest reliability
+	var reliablePaths []Path
+	var highestReliability float64 = -1
+	for _, path := range desirableJitterPaths {
+		reliability := r2tdsdnRel(path, switchRel, linkRel)
+		// fmt.Printf("Path: %v, Jitter: %v, reliability: %v\n", path, r2tdsdnJitter(net, path), reliability)
+		if reliability > highestReliability {
+			reliablePaths = []Path{path}
+			highestReliability = reliability
+		} else if reliability == highestReliability {
+			reliablePaths = append(reliablePaths, path)
+		}
+	}
+
+	var jitters []int
+	var reliabilities []float64
+	for _, path := range reliablePaths {
+		jitters = append(jitters, r2tdsdnJitter(net, path))
+		reliabilities = append(reliabilities, r2tdsdnRel(path, switchRel, linkRel))
+	}
+
+	return reliablePaths, jitters, reliabilities
+}
+
+// calculate the end-to-end reliablity of a path according to equation.(5) of the paper R2T‑DSDN.
+func r2tdsdnRel(path Path, switchRel, linkRel float64) float64 {
+	linkNum := len(path.Nodes) - 1
+	switchNum := len(path.Nodes)
+	return math.Pow(linkRel, float64(linkNum)) * math.Pow(switchRel, float64(switchNum))
+}
+
+// calculate the end-to-end jitter of a path, simply add, the paper R2T‑DSDN does not write how to calculate it
+func r2tdsdnJitter(net Network, path Path) int {
+	var totalJitter int
+	for i := 0; i < len(path.Nodes)-1; i++ {
+		totalJitter += net.Jitters[path.Nodes[i]][path.Nodes[i+1]]
+	}
+	return totalJitter
+}
+
+// (For test) randomly generate jitters for an undirected network
+func GenerateUndirectedJitters(net Network, start, end int) {
+	n := len(net.Nodes)
+	rand.Seed(time.Now().UnixNano())
+	var jitters [][]int = make([][]int, n)
+	for i := 0; i < len(jitters); i++ {
+		jitters[i] = make([]int, n)
+		jitters[i][i] = 0
+		for j := i + 1; j < len(jitters); j++ {
+			jitters[i][j] = rand.Intn(end-start+1) + start
+		}
+	}
+	for i := 0; i < len(jitters); i++ {
+		for j := 0; j < i; j++ {
+			jitters[i][j] = jitters[j][i]
+		}
+	}
+	fmt.Printf("\n{\n")
+	for i := 0; i < len(jitters); i++ {
+		fmt.Printf("{")
+		for j := 0; j < len(jitters); j++ {
+			fmt.Printf("%d", jitters[i][j])
+			if j != len(jitters)-1 {
+				fmt.Printf(", ")
+			}
+		}
+		fmt.Printf("},\n")
+	}
+	fmt.Printf("}\n")
+}
+
+// (For test) randomly generate jitters for a directed network
+func GenerateDirectedJitters(net Network, start, end int) {
+	n := len(net.Nodes)
+	rand.Seed(time.Now().UnixNano())
+	var jitters [][]int = make([][]int, n)
+	for i := 0; i < len(jitters); i++ {
+		jitters[i] = make([]int, n)
+		jitters[i][i] = 0
+		for j := 0; j < len(jitters); j++ {
+			if i == j {
+				continue
+			}
+			jitters[i][j] = rand.Intn(end-start+1) + start
+		}
+	}
+	fmt.Printf("\n{\n")
+	for i := 0; i < len(jitters); i++ {
+		fmt.Printf("{")
+		for j := 0; j < len(jitters); j++ {
+			fmt.Printf("%d", jitters[i][j])
+			if j != len(jitters)-1 {
+				fmt.Printf(", ")
+			}
+		}
+		fmt.Printf("},\n")
+	}
+	fmt.Printf("}\n")
+}
+
+// (For test) the result can be directly copied to make test cases
+func PrintPaths(paths []Path) {
+	for i := 0; i < len(paths); i++ {
+		fmt.Printf("Path{Nodes: []int{")
+		for j := 0; j < len(paths[i].Nodes); j++ {
+			fmt.Printf("%d", paths[i].Nodes[j])
+			if j != len(paths[i].Nodes)-1 {
+				fmt.Printf(",")
+			}
+		}
+		fmt.Printf("}, Latency: %d}\n", paths[i].Latency)
+	}
 }
