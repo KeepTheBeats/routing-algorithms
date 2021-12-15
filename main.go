@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"routing-algorithms/network"
+	"routing-algorithms/random"
 )
 
 func main() {
@@ -57,4 +58,9 @@ func main() {
 	// net1.Nodes = make([]network.Node, len(net1.Links))
 	// fmt.Println()
 	// network.GenerateDirectedJitters(net1, 0, 10)
+
+	fmt.Println()
+	for i := 0; i < 40; i++ {
+		fmt.Println(random.PoissonRandom(300))
+	}
 }

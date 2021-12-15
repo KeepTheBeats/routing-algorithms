@@ -14,6 +14,8 @@ type Flow struct {
 	Source          int
 	Destination     int
 	DesirableJitter int
+	Data            int // the amount of data that the flow need to transmit, the unit is b(bit), in the experiment of R2T‑DSDN paper, Link data rate is 10Gb/s (1073742b/ms)
+	Deadline        int // in non-RT flows, deadline is -1, unit is ms.
 }
 
 type Path struct {

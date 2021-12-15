@@ -593,6 +593,8 @@ func r2tdsdnJitter(net Network, path Path) int {
 	return totalJitter
 }
 
+// -------the functions below are used to generate test cases --------
+
 // (For test) randomly generate jitters for an undirected network
 func GenerateUndirectedJitters(net Network, start, end int) {
 	n := len(net.Nodes)
