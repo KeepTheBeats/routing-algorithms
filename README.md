@@ -1,4 +1,5 @@
 # routing-algorithms
+## Go version: 1.17.3
 
 - shortest paths through dfs
 - shortest paths through Dijkstra
