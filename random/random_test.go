@@ -16,11 +16,11 @@ func TestPoissonRandom(t *testing.T) {
 }
 
 func TestNormalRandomRS(t *testing.T) {
-	fmt.Println("Generate 40 random following Normal(10, 20), between -10 and 30:")
+	fmt.Println("Generate 40 random following Normal(10, 20), between -10 and 30, through rejection sampling:")
 	for i := 0; i < 40; i++ {
 		fmt.Println(NormalRandomRS(-10, 30, 10, 20))
 	}
-	fmt.Println("Generate 40 random following Normal(5, 2), between -5 and 15:")
+	fmt.Println("Generate 40 random following Normal(5, 2), between -5 and 15, through rejection sampling:")
 	for i := 0; i < 40; i++ {
 		fmt.Println(NormalRandomRS(-5, 15, 5, 2))
 	}
@@ -68,5 +68,16 @@ func TestInnerNormalDensity(t *testing.T) {
 		t.Logf("test: %s", testCase.name)
 		actualResult := normalDensity(testCase.x, testCase.miu, testCase.sigma)
 		assert.Equal(t, testCase.expectedResult, actualResult, fmt.Sprintf("%s: result is not expected", testCase.name))
+	}
+}
+
+func TestNormalRandomBM(t *testing.T) {
+	fmt.Println("Generate 40 random following Normal(10, 20), between -10 and 30, through Box-Muller:")
+	for i := 0; i < 40; i++ {
+		fmt.Println(NormalRandomBM(-10, 30, 10, 20))
+	}
+	fmt.Println("Generate 40 random following Normal(5, 2), between -5 and 15, through Box-Muller:")
+	for i := 0; i < 40; i++ {
+		fmt.Println(NormalRandomBM(-5, 15, 5, 2))
 	}
 }

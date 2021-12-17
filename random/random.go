@@ -28,7 +28,7 @@ func PoissonRandom(lambda float64) int {
 	var p float64 = math.Pow(math.E, -lambda) // the probability that X==k
 	var sumP float64 = p                      // the the probability that X<=k
 	for {
-		if u < sumP { // section [P{X=k-1},P{X=k}) map to result value k
+		if u < sumP { // interval [P{X=k-1},P{X=k}) matches to result value k
 			return k
 		}
 		// P{X=k+1} = P{X=k}*lambda/(k+1)
@@ -59,4 +59,22 @@ func NormalRandomRS(lowerBound, upperBound, miu, sigma float64) float64 {
 // use normal density function to get f(x) from x
 func normalDensity(x float64, miu float64, sigma float64) float64 {
 	return 1 / (math.Sqrt(2*math.Pi) * sigma) * math.Pow(math.E, -(math.Pow(x-miu, 2))/(2*math.Pow(sigma, 2)))
+}
+
+// generate a random number that follows Normal distribution through Box-Muller, between lowerBound and upperBound
+func NormalRandomBM(lowerBound, upperBound, miu, sigma float64) float64 {
+	if lowerBound > upperBound || miu < lowerBound || miu > upperBound {
+		return 0
+	}
+	for {
+		u := 1 - rand.Float64() // in the half-open interval (0.0,1.0]
+		v := 1 - rand.Float64() // in the half-open interval (0.0,1.0]
+
+		z := math.Sqrt(-2*math.Log(u)) * math.Cos(2*math.Pi*v) // log(u) is ln(u)
+
+		x := z*sigma + miu // z~N(0,1), so x~N(miu,sigma^2)
+		if x >= lowerBound && x <= upperBound {
+			return x
+		}
+	}
 }

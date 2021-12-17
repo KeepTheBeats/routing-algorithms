@@ -59,8 +59,12 @@ func main() {
 	// fmt.Println()
 	// network.GenerateDirectedJitters(net1, 0, 10)
 
-	fmt.Println()
+	fmt.Println("Generate 40 random following Normal(10, 20), between -10 and 30:")
 	for i := 0; i < 40; i++ {
-		fmt.Println(random.PoissonRandom(300))
+		fmt.Println(random.NormalRandomBM(-10, 30, 10, 20))
+	}
+	fmt.Println("Generate 40 random following Normal(5, 2), between -5 and 15:")
+	for i := 0; i < 40; i++ {
+		fmt.Println(random.NormalRandomBM(-5, 15, 5, 2))
 	}
 }
