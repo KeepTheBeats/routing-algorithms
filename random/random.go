@@ -12,30 +12,38 @@ func init() {
 
 // generate a random number that follows Poisson distribution
 // P{X=k}=lambda^k/k!*e(-lambda), k=0,1,2,...
-func PoissonRandom(lambda float64) int {
+func PoissonRandom(lowerBound, upperBound int, lambda float64) int {
+	if lowerBound > upperBound || lambda < float64(lowerBound) || lambda > float64(upperBound) {
+		return -1
+	}
 	if !(lambda > 0) {
 		return -1 // lambda must be larger than 0
 	}
-
-	// randomly generate a probability from [0.0,1.0)
-	var u float64 = rand.Float64()
-	for u > 0.9999999999999999 {
-		// prevent the program from getting stuck (rand.Float64() can guarantee that the result is always less than 1.0, so maybe this check is unnecessary, but I am not sure.)
-		u = rand.Float64()
-	}
-
-	var k int = 0
-	var p float64 = math.Pow(math.E, -lambda) // the probability that X==k
-	var sumP float64 = p                      // the the probability that X<=k
+START:
 	for {
-		if u < sumP { // interval [P{X=k-1},P{X=k}) matches to result value k
-			return k
+		// randomly generate a probability from [0.0,1.0)
+		var u float64 = rand.Float64()
+		for u > 0.9999999999999999 {
+			// prevent the program from getting stuck (rand.Float64() can guarantee that the result is always less than 1.0, so maybe this check is unnecessary, but I am not sure.)
+			u = rand.Float64()
 		}
-		// P{X=k+1} = P{X=k}*lambda/(k+1)
-		// deduced from "P{X=k}=lambda^k/k!*e(-lambda)"
-		p *= lambda / float64(k+1)
-		sumP += p
-		k++
+
+		var k int = 0
+		var p float64 = math.Pow(math.E, -lambda) // the probability that X==k
+		var sumP float64 = p                      // the the probability that X<=k
+		for {
+			if u < sumP { // interval [P{X=k-1},P{X=k}) matches to result value k
+				if k < lowerBound || k > upperBound {
+					continue START // break bounds
+				}
+				return k
+			}
+			// P{X=k+1} = P{X=k}*lambda/(k+1)
+			// deduced from "P{X=k}=lambda^k/k!*e(-lambda)"
+			p *= lambda / float64(k+1)
+			sumP += p
+			k++
+		}
 	}
 }
 

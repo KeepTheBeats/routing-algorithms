@@ -11,7 +11,7 @@ import (
 func TestPoissonRandom(t *testing.T) {
 	fmt.Println("Generate 40 random following Poisson(200):")
 	for i := 0; i < 40; i++ {
-		fmt.Println(PoissonRandom(200))
+		fmt.Println(PoissonRandom(190, 210, 200))
 	}
 }
 
