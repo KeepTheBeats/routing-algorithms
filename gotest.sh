@@ -1,4 +1,4 @@
 rootDir=$(cd $(dirname $0); pwd)
 
-go test ${rootDir}/random
-go test ${rootDir}/network
+go test ${rootDir}/random -count=1
+go test ${rootDir}/network -count=1

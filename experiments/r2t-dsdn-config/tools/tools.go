@@ -97,11 +97,7 @@ func ReadJsonNet(filePath string) network.Network {
 func GenerateAllNets(num int) {
 	var netName string
 	for i := 1; i <= num; i++ {
-		if i < 10 {
-			netName = fmt.Sprintf("net0%d", i)
-		} else {
-			netName = fmt.Sprintf("net%d", i)
-		}
+		netName = GetNetName(i)
 		net := ReadAltNet("./experiments/r2t-dsdn-config/gtitmnetworks/" + netName + ".alt")
 		WriteJson(net, "./experiments/r2t-dsdn-config/jsonnetworks/"+netName+".json")
 	}
@@ -127,16 +123,16 @@ func GenerateFlowsForNet(net network.Network, num int) [][]network.Flow {
 			}
 
 			// generate desirableJitter
-			flows[i][j].DesirableJitter = int(random.NormalRandomBM(3*10, 15*10, 8*10, 7*10))
+			flows[i][j].DesirableJitter = int(random.NormalRandomBM(15, 40, 30, 15))
 
 			// generate data
-			flows[i][j].Data = int(random.NormalRandomBM(10, 30, 20, 10))
+			flows[i][j].Data = random.NormalRandomBM(30, 90, 60, 40)
 
 			// generate deadline
 			flows[i][j].Deadline = -1 // in non-RT flows, deadline is -1
 			if j < numRTFlows {
 				// transmission time is the sum of latency of links, if transmission time <= deadline, it can hit deadline
-				flows[i][j].Deadline = int(random.NormalRandomBM(50, 150, 80, 85))
+				flows[i][j].Deadline = int(random.NormalRandomBM(13, 33, 24, 18))
 			}
 		}
 	}
@@ -161,13 +157,290 @@ func ReadJsonFlows(filePath string) [][]network.Flow {
 func GenerateAllFlows(numNet, numScenario int) {
 	var netName string
 	for i := 1; i <= numNet; i++ {
-		if i < 10 {
-			netName = fmt.Sprintf("net0%d", i)
-		} else {
-			netName = fmt.Sprintf("net%d", i)
-		}
+		netName = GetNetName(i)
 		net := ReadJsonNet("./experiments/r2t-dsdn-config/jsonnetworks/" + netName + ".json")
 		flows := GenerateFlowsForNet(net, numScenario)
 		WriteJson(flows, "./experiments/r2t-dsdn-config/jsonnetworks/"+netName+"_flows.json")
 	}
+}
+
+// read json files in in "jsonnetworks" to get nets and flows
+func GetNetAndFlows(num int) ([]network.Network, [][][]network.Flow) {
+	var nets []network.Network = make([]network.Network, num)
+	var flows [][][]network.Flow = make([][][]network.Flow, num)
+	var netName string
+	for i := 0; i < num; i++ {
+		netName = GetNetName(i + 1)
+		nets[i] = ReadJsonNet("./experiments/r2t-dsdn-config/jsonnetworks/" + netName + ".json")
+		flows[i] = ReadJsonFlows("./experiments/r2t-dsdn-config/jsonnetworks/" + netName + "_flows.json")
+	}
+	return nets, flows
+}
+
+// route all flows of all nets
+func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float64, dynamicReserve bool) []network.RoutingResult {
+	var bandwidth float64 = 131
+	var bandwidthNonRT float64
+
+	var results []network.RoutingResult
+	for z := 0; z < len(nets); z++ { // for every net
+		for i := 0; i < len(flows[z]); i++ { // for every scenario
+			if dynamicReserve {
+				reservedBW = DynamicReservedBW(flows[z][i])
+			}
+			nets[z].FlowIndexes = make([][][]int, len(nets[z].Nodes))
+			for k := 0; k < len(nets[z].FlowIndexes); k++ {
+				nets[z].FlowIndexes[k] = make([][]int, len(nets[z].Nodes))
+			}
+			for j := 0; j < len(flows[z][i]); j++ { // for every flow
+				paths, jitters, _ := network.R2tdsdnRouting(nets[z], flows[z][i][j], 15, 0.8, 0.2)
+				// record routing results into flow
+				flows[z][i][j].Paths = paths
+				flows[z][i][j].Jitters = jitters
+				// record routing results into net
+				for _, path := range paths {
+					for k := 0; k < len(path.Nodes)-1; k++ {
+						smaller, bigger := smallerBigger(path.Nodes[k], path.Nodes[k+1])
+						// only write to the up-right of the matrix, because graph is undirected
+						nets[z].FlowIndexes[smaller][bigger] = append(nets[z].FlowIndexes[smaller][bigger], j)
+					}
+				}
+			}
+
+			// drop some flows because of overloaded links
+			bandwidthNonRT = bandwidth * (float64(1) - reservedBW)
+			for {
+				deleted := false
+				for j := 0; j < len(nets[z].FlowIndexes); j++ {
+				NEXTLINK:
+					for k := j + 1; k < len(nets[z].FlowIndexes[j]); k++ { // for every link [j][k]
+						if len(nets[z].FlowIndexes[j][k]) == 0 {
+							continue // no flows routed on this link
+						}
+						// get the sum of data on this link
+						var sumData float64
+						for l := 0; l < len(nets[z].FlowIndexes[j][k]); l++ {
+							sumData += dataPerPath(flows[z][i][nets[z].FlowIndexes[j][k][l]])
+						}
+
+						// fmt.Println("net: ", z, i, "link: ", j, k)
+						// fmt.Println(sumData, bandwidthNonRT, bandwidth)
+
+						if sumData <= bandwidthNonRT {
+							continue // this link is not overloaded
+						}
+
+						if sumData <= bandwidth { // non-RT overloaded
+							// if a non-RT flow is on this link, remove it from this link
+							for l := 0; l < len(nets[z].FlowIndexes[j][k]); l++ {
+								if !isRtFlow(flows[z][i][nets[z].FlowIndexes[j][k][l]]) {
+
+									// fmt.Println("Before Delete:----------------", sumData, bandwidthNonRT, bandwidth)
+									// for j := 0; j < len(nets[z].Nodes); j++ {
+									// 	fmt.Println(nets[z].FlowIndexes[j])
+									// }
+									// fmt.Println()
+									// deletedL := nets[z].FlowIndexes[j][k][l]
+									// fmt.Println("Number: ", deletedL, flows[z][i][deletedL])
+									// fmt.Println()
+
+									rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][l]], nets[z].FlowIndexes[j][k][l])
+
+									// fmt.Println("After Delete:----------------")
+									// for j := 0; j < len(nets[z].Nodes); j++ {
+									// 	fmt.Println(nets[z].FlowIndexes[j])
+									// }
+									// fmt.Println()
+									// fmt.Println(flows[z][i][deletedL])
+									// fmt.Println()
+
+									deleted = true
+									break
+								}
+							}
+							continue
+						}
+
+						// overloaded, remove a flow
+						// remove non-RT flows firstly
+						for l := 0; l < len(nets[z].FlowIndexes[j][k]); l++ {
+							if !isRtFlow(flows[z][i][nets[z].FlowIndexes[j][k][l]]) {
+								// fmt.Println("Before Delete:----------------", sumData, bandwidthNonRT, bandwidth)
+								// for j := 0; j < len(nets[z].Nodes); j++ {
+								// 	fmt.Println(nets[z].FlowIndexes[j])
+								// }
+								// fmt.Println()
+								// deletedL := nets[z].FlowIndexes[j][k][l]
+								// fmt.Println("Number: ", deletedL, flows[z][i][deletedL])
+								// fmt.Println()
+
+								rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][l]], nets[z].FlowIndexes[j][k][l])
+
+								// fmt.Println("After Delete:----------------")
+								// for j := 0; j < len(nets[z].Nodes); j++ {
+								// 	fmt.Println(nets[z].FlowIndexes[j])
+								// }
+								// fmt.Println()
+								// fmt.Println(flows[z][i][deletedL])
+								// fmt.Println()
+
+								deleted = true
+								continue NEXTLINK
+							}
+						}
+						// no non-RT flows, remove an RT flow
+						if len(nets[z].FlowIndexes[j][k]) != 0 {
+							// fmt.Println("Before Delete:----------------", sumData, bandwidthNonRT, bandwidth)
+							// for j := 0; j < len(nets[z].Nodes); j++ {
+							// 	fmt.Println(nets[z].FlowIndexes[j])
+							// }
+							// fmt.Println()
+							// deletedL := nets[z].FlowIndexes[j][k][0]
+							// fmt.Println("Number: ", deletedL, flows[z][i][deletedL])
+							// fmt.Println()
+
+							rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][0]], nets[z].FlowIndexes[j][k][0])
+							deleted = true
+
+							// fmt.Println("After Delete:----------------")
+							// for j := 0; j < len(nets[z].Nodes); j++ {
+							// 	fmt.Println(nets[z].FlowIndexes[j])
+							// }
+							// fmt.Println()
+							// fmt.Println(flows[z][i][deletedL])
+							// fmt.Println()
+						}
+					}
+				}
+				if !deleted {
+					break // no flows need to be dropped
+				}
+			}
+
+			// for every scenario, record routing result
+			newResult := network.RoutingResult{
+				Net:   nets[z],
+				Flows: flows[z][i],
+			}
+			results = append(results, newResult)
+
+		}
+	}
+	return results
+}
+
+// if a flow are transmitted through n paths, data on every path is flow.Data/n
+func dataPerPath(flow network.Flow) float64 {
+	return flow.Data / float64(len(flow.Paths))
+}
+
+// calculate reserved bandwidth
+func DynamicReservedBW(flows []network.Flow) float64 {
+	var rtNum int
+	for _, flow := range flows {
+		if flow.Deadline != -1 {
+			rtNum++
+		}
+	}
+	var rtRatio float64 = float64(rtNum) / float64(len(flows))
+	// function: y = 2/3*x + 1/15, x: rtRatio, y: reservedBW
+	var reservedBW float64 = rtRatio*(float64(2)/float64(3)) + float64(1)/float64(15)
+	return reservedBW
+}
+
+func isRtFlow(flow network.Flow) bool {
+	return flow.Deadline != -1
+}
+
+func rmFlowFromLink(net *network.Network, head, tail int, flow *network.Flow, flowIndex int) {
+	// find a path containing this link
+	var removeIndex int = -1
+FINDINDEX:
+	for index, path := range flow.Paths {
+		for i := 0; i < len(path.Nodes)-1; i++ {
+			if (head == path.Nodes[i] && tail == path.Nodes[i+1]) || (tail == path.Nodes[i] && head == path.Nodes[i+1]) {
+				removeIndex = index
+				break FINDINDEX
+			}
+		}
+	}
+	// remove flow index of all links
+	for i := 0; i < len(flow.Paths[removeIndex].Nodes)-1; i++ {
+		smaller, bigger := smallerBigger(flow.Paths[removeIndex].Nodes[i], flow.Paths[removeIndex].Nodes[i+1])
+		j := 0
+		for j < len(net.FlowIndexes[smaller][bigger]) {
+			if net.FlowIndexes[smaller][bigger][j] == flowIndex {
+				break
+			}
+			j++
+		}
+		net.FlowIndexes[smaller][bigger] = append(net.FlowIndexes[smaller][bigger][:j], net.FlowIndexes[smaller][bigger][j+1:]...)
+	}
+
+	// remove path of the flow
+	flow.Paths = append(flow.Paths[:removeIndex], flow.Paths[removeIndex+1:]...)
+	flow.Jitters = append(flow.Jitters[:removeIndex], flow.Jitters[removeIndex+1:]...)
+}
+
+func smallerBigger(a, b int) (int, int) {
+	smaller := a
+	bigger := b
+	if bigger < smaller {
+		smaller, bigger = bigger, smaller
+	}
+	return smaller, bigger
+}
+
+// get net name from index
+func GetNetName(i int) string {
+	if i < 10 {
+		return fmt.Sprintf("net0%d", i)
+	} else {
+		return fmt.Sprintf("net%d", i)
+	}
+}
+
+// write routing results to json files
+func WriteResults(nets []network.Network, flows [][][]network.Flow) {
+	WriteJson(nets, "./experiments/r2t-dsdn-config/jsonnetworks/nets_results.json")
+	WriteJson(flows, "./experiments/r2t-dsdn-config/jsonnetworks/flows_results.json")
+}
+
+// read routing results from json files
+func ReadResults() (nets []network.Network, flows [][][]network.Flow) {
+	netsData, err := ioutil.ReadFile("./experiments/r2t-dsdn-config/jsonnetworks/nets_results.json")
+	if err != nil {
+		panic(err)
+	}
+	err = json.Unmarshal(netsData, &nets)
+	if err != nil {
+		panic(err)
+	}
+	flowsData, err := ioutil.ReadFile("./experiments/r2t-dsdn-config/jsonnetworks/flows_results.json")
+	if err != nil {
+		panic(err)
+	}
+	err = json.Unmarshal(flowsData, &flows)
+	if err != nil {
+		panic(err)
+	}
+	return
+}
+
+// write results with struct []network.RoutingResult
+func WriteTotalResults(results []network.RoutingResult) {
+	WriteJson(results, "./experiments/r2t-dsdn-config/jsonnetworks/total_results.json")
+}
+
+// read results with struct []network.RoutingResult
+func ReadTotalResults() (results []network.RoutingResult) {
+	resultsData, err := ioutil.ReadFile("./experiments/r2t-dsdn-config/jsonnetworks/total_results.json")
+	if err != nil {
+		panic(err)
+	}
+	err = json.Unmarshal(resultsData, &results)
+	if err != nil {
+		panic(err)
+	}
+	return
 }
