@@ -7,14 +7,13 @@ import (
 
 func main() {
 	tools.GenerateAllNets(50)
-	var netName string
-	for i := 1; i <= 50; i++ {
-		if i < 10 {
-			netName = fmt.Sprintf("net0%d", i)
-		} else {
-			netName = fmt.Sprintf("net%d", i)
+	tools.GenerateAllFlows(50, 100)
+	flows := tools.ReadJsonFlows("./experiments/r2t-dsdn-config/jsonnetworks/net04_flows.json")
+
+	for i := 0; i < len(flows); i++ {
+		fmt.Println("scenario", i+1)
+		for j := 0; j < len(flows[i]); j++ {
+			fmt.Println(flows[i][j])
 		}
-		net := tools.ReadJsonNet("./experiments/r2t-dsdn-config/jsonnetworks/" + netName + ".json")
-		fmt.Println(net)
 	}
 }

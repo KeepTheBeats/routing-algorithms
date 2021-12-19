@@ -67,9 +67,9 @@ func ReadAltNet(filePath string) network.Network {
 	return net
 }
 
-// write network to json file
-func WriteJsonNet(net network.Network, outPath string) {
-	data, err := json.Marshal(net)
+// write content to json file
+func WriteJson(v interface{}, outPath string) {
+	data, err := json.Marshal(v)
 	if err != nil {
 		panic(err)
 	}
@@ -103,6 +103,71 @@ func GenerateAllNets(num int) {
 			netName = fmt.Sprintf("net%d", i)
 		}
 		net := ReadAltNet("./experiments/r2t-dsdn-config/gtitmnetworks/" + netName + ".alt")
-		WriteJsonNet(net, "./experiments/r2t-dsdn-config/jsonnetworks/"+netName+".json")
+		WriteJson(net, "./experiments/r2t-dsdn-config/jsonnetworks/"+netName+".json")
+	}
+}
+
+// generate num scenarios for net
+func GenerateFlowsForNet(net network.Network, num int) [][]network.Flow {
+	// generate num scenarios
+	var flows [][]network.Flow = make([][]network.Flow, num)
+	for i := 0; i < num; i++ {
+		// in every scenario there are [5,20] flows
+		numFlows := random.RandomInt(5, 20)
+		// in every scenario there are [0,numFlows] RT-flows
+		numRTFlows := random.RandomInt(0, numFlows)
+
+		flows[i] = make([]network.Flow, numFlows)
+		for j := 0; j < numFlows; j++ {
+			// generate source and destination
+			flows[i][j].Source = random.RandomInt(0, len(net.Nodes)-1)
+			flows[i][j].Destination = random.RandomInt(0, len(net.Nodes)-1)
+			for flows[i][j].Source == flows[i][j].Destination {
+				flows[i][j].Destination = random.RandomInt(0, len(net.Nodes)-1)
+			}
+
+			// generate desirableJitter
+			flows[i][j].DesirableJitter = int(random.NormalRandomBM(3*10, 15*10, 8*10, 7*10))
+
+			// generate data
+			flows[i][j].Data = int(random.NormalRandomBM(10, 30, 20, 10))
+
+			// generate deadline
+			flows[i][j].Deadline = -1 // in non-RT flows, deadline is -1
+			if j < numRTFlows {
+				// transmission time is the sum of latency of links, if transmission time <= deadline, it can hit deadline
+				flows[i][j].Deadline = int(random.NormalRandomBM(50, 150, 80, 85))
+			}
+		}
+	}
+	return flows
+}
+
+// read flows from json file
+func ReadJsonFlows(filePath string) [][]network.Flow {
+	flowData, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+	var flows [][]network.Flow
+	err = json.Unmarshal(flowData, &flows)
+	if err != nil {
+		panic(err)
+	}
+	return flows
+}
+
+// read json files of networks in "jsonnetworks" to generate json files of flows in "jsonnetworks", generate numScenario scenarios for every net
+func GenerateAllFlows(numNet, numScenario int) {
+	var netName string
+	for i := 1; i <= numNet; i++ {
+		if i < 10 {
+			netName = fmt.Sprintf("net0%d", i)
+		} else {
+			netName = fmt.Sprintf("net%d", i)
+		}
+		net := ReadJsonNet("./experiments/r2t-dsdn-config/jsonnetworks/" + netName + ".json")
+		flows := GenerateFlowsForNet(net, numScenario)
+		WriteJson(flows, "./experiments/r2t-dsdn-config/jsonnetworks/"+netName+"_flows.json")
 	}
 }

@@ -11,14 +11,15 @@ type Node struct {
 }
 
 type Flow struct {
-	Source          int
-	Destination     int
-	DesirableJitter int
-	Data            int // the amount of data that the flow need to transmit, the unit is b(bit), in the experiment of R2T‑DSDN paper, Link data rate is 10Gb/s (1073742b/ms)
-	Deadline        int // in non-RT flows, deadline is -1, unit is ms.
+	Source          int    `json:"source"`
+	Destination     int    `json:"destination"`
+	DesirableJitter int    `json:"desirablejitter"`
+	Data            int    `json:"data"`     // the amount of data that the flow need to transmit, the unit is b(bit), in the experiment of R2T‑DSDN paper, Link data rate is 10Gb/s (1073742b/ms, 1048kb/ms, 131KB/ms)
+	Deadline        int    `json:"deadline"` // in non-RT flows, deadline is -1, unit is ms.
+	Paths           []Path `json:"paths"`    // paths chosen by routing
 }
 
 type Path struct {
-	Nodes   []int // nodes on a path
-	Latency int   // total latency of a path
+	Nodes   []int `json:"nodes"`   // nodes on a path
+	Latency int   `json:"latency"` // total latency of a path
 }

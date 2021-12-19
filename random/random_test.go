@@ -81,3 +81,10 @@ func TestNormalRandomBM(t *testing.T) {
 		fmt.Println(NormalRandomBM(-5, 15, 5, 2))
 	}
 }
+
+func TestRandomInt(t *testing.T) {
+	fmt.Println("Generate 40 random in [10,20]:")
+	for i := 0; i < 40; i++ {
+		fmt.Println(RandomInt(10, 20))
+	}
+}
