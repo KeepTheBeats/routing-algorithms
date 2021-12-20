@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -109,9 +110,12 @@ func GenerateFlowsForNet(net network.Network, num int) [][]network.Flow {
 	var flows [][]network.Flow = make([][]network.Flow, num)
 	for i := 0; i < num; i++ {
 		// in every scenario there are [5,20] flows
-		numFlows := random.RandomInt(5, 20)
+		// numFlows := random.RandomInt(5, 20)
+
+		// there are 120 scenarios, in every scenario there are 10-30 flows, 6 scenarios have 10, 6 have 11, 6 have 12 ... 6 have 30
+		numFlows := i/6 + 10
 		// in every scenario there are [0,numFlows] RT-flows
-		numRTFlows := random.RandomInt(0, numFlows)
+		numRTFlows := random.RandomInt(1, numFlows)
 
 		flows[i] = make([]network.Flow, numFlows)
 		for j := 0; j < numFlows; j++ {
@@ -132,7 +136,7 @@ func GenerateFlowsForNet(net network.Network, num int) [][]network.Flow {
 			flows[i][j].Deadline = -1 // in non-RT flows, deadline is -1
 			if j < numRTFlows {
 				// transmission time is the sum of latency of links, if transmission time <= deadline, it can hit deadline
-				flows[i][j].Deadline = int(random.NormalRandomBM(13, 33, 24, 18))
+				flows[i][j].Deadline = int(random.NormalRandomBM(15, 28, 22, 18))
 			}
 		}
 	}
@@ -207,12 +211,12 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 				}
 			}
 
-			// drop some flows because of overloaded links
 			bandwidthNonRT = bandwidth * (float64(1) - reservedBW)
+
+			// drop some non-RT flows because of non-RT overloaded links
 			for {
 				deleted := false
 				for j := 0; j < len(nets[z].FlowIndexes); j++ {
-				NEXTLINK:
 					for k := j + 1; k < len(nets[z].FlowIndexes[j]); k++ { // for every link [j][k]
 						if len(nets[z].FlowIndexes[j][k]) == 0 {
 							continue // no flows routed on this link
@@ -223,9 +227,6 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 							sumData += dataPerPath(flows[z][i][nets[z].FlowIndexes[j][k][l]])
 						}
 
-						// fmt.Println("net: ", z, i, "link: ", j, k)
-						// fmt.Println(sumData, bandwidthNonRT, bandwidth)
-
 						if sumData <= bandwidthNonRT {
 							continue // this link is not overloaded
 						}
@@ -235,24 +236,7 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 							for l := 0; l < len(nets[z].FlowIndexes[j][k]); l++ {
 								if !isRtFlow(flows[z][i][nets[z].FlowIndexes[j][k][l]]) {
 
-									// fmt.Println("Before Delete:----------------", sumData, bandwidthNonRT, bandwidth)
-									// for j := 0; j < len(nets[z].Nodes); j++ {
-									// 	fmt.Println(nets[z].FlowIndexes[j])
-									// }
-									// fmt.Println()
-									// deletedL := nets[z].FlowIndexes[j][k][l]
-									// fmt.Println("Number: ", deletedL, flows[z][i][deletedL])
-									// fmt.Println()
-
 									rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][l]], nets[z].FlowIndexes[j][k][l])
-
-									// fmt.Println("After Delete:----------------")
-									// for j := 0; j < len(nets[z].Nodes); j++ {
-									// 	fmt.Println(nets[z].FlowIndexes[j])
-									// }
-									// fmt.Println()
-									// fmt.Println(flows[z][i][deletedL])
-									// fmt.Println()
 
 									deleted = true
 									break
@@ -260,55 +244,36 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 							}
 							continue
 						}
+					}
+				}
+				if !deleted {
+					break // no flows need to be dropped
+				}
+			}
 
-						// overloaded, remove a flow
-						// remove non-RT flows firstly
-						for l := 0; l < len(nets[z].FlowIndexes[j][k]); l++ {
-							if !isRtFlow(flows[z][i][nets[z].FlowIndexes[j][k][l]]) {
-								// fmt.Println("Before Delete:----------------", sumData, bandwidthNonRT, bandwidth)
-								// for j := 0; j < len(nets[z].Nodes); j++ {
-								// 	fmt.Println(nets[z].FlowIndexes[j])
-								// }
-								// fmt.Println()
-								// deletedL := nets[z].FlowIndexes[j][k][l]
-								// fmt.Println("Number: ", deletedL, flows[z][i][deletedL])
-								// fmt.Println()
-
-								rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][l]], nets[z].FlowIndexes[j][k][l])
-
-								// fmt.Println("After Delete:----------------")
-								// for j := 0; j < len(nets[z].Nodes); j++ {
-								// 	fmt.Println(nets[z].FlowIndexes[j])
-								// }
-								// fmt.Println()
-								// fmt.Println(flows[z][i][deletedL])
-								// fmt.Println()
-
-								deleted = true
-								continue NEXTLINK
-							}
+			// drop some flows because of overloaded links
+			for {
+				deleted := false
+				for j := 0; j < len(nets[z].FlowIndexes); j++ {
+					for k := j + 1; k < len(nets[z].FlowIndexes[j]); k++ { // for every link [j][k]
+						if len(nets[z].FlowIndexes[j][k]) == 0 {
+							continue // no flows routed on this link
 						}
-						// no non-RT flows, remove an RT flow
+						// get the sum of data on this link
+						var sumData float64
+						for l := 0; l < len(nets[z].FlowIndexes[j][k]); l++ {
+							sumData += dataPerPath(flows[z][i][nets[z].FlowIndexes[j][k][l]])
+						}
+
+						if sumData <= bandwidth {
+							continue // this link is not overloaded
+						}
+
+						// overloaded, remove a flow randomly
 						if len(nets[z].FlowIndexes[j][k]) != 0 {
-							// fmt.Println("Before Delete:----------------", sumData, bandwidthNonRT, bandwidth)
-							// for j := 0; j < len(nets[z].Nodes); j++ {
-							// 	fmt.Println(nets[z].FlowIndexes[j])
-							// }
-							// fmt.Println()
-							// deletedL := nets[z].FlowIndexes[j][k][0]
-							// fmt.Println("Number: ", deletedL, flows[z][i][deletedL])
-							// fmt.Println()
-
-							rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][0]], nets[z].FlowIndexes[j][k][0])
+							l := random.RandomInt(0, len(nets[z].FlowIndexes[j][k])-1)
+							rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][l]], nets[z].FlowIndexes[j][k][l])
 							deleted = true
-
-							// fmt.Println("After Delete:----------------")
-							// for j := 0; j < len(nets[z].Nodes); j++ {
-							// 	fmt.Println(nets[z].FlowIndexes[j])
-							// }
-							// fmt.Println()
-							// fmt.Println(flows[z][i][deletedL])
-							// fmt.Println()
 						}
 					}
 				}
@@ -336,15 +301,23 @@ func dataPerPath(flow network.Flow) float64 {
 
 // calculate reserved bandwidth
 func DynamicReservedBW(flows []network.Flow) float64 {
-	var rtNum int
+	// configure reserved bandwidth dynamically according to the ratio of rtData
+	var rtData, totalData float64
 	for _, flow := range flows {
-		if flow.Deadline != -1 {
-			rtNum++
+		if isRtFlow(flow) {
+			rtData += flow.Data
 		}
+		totalData += flow.Data
 	}
-	var rtRatio float64 = float64(rtNum) / float64(len(flows))
+	var rtRatio float64 = rtData / totalData
 	// function: y = 2/3*x + 1/15, x: rtRatio, y: reservedBW
 	var reservedBW float64 = rtRatio*(float64(2)/float64(3)) + float64(1)/float64(15)
+	if reservedBW > 0.6 { // max: 0.6
+		reservedBW = 0.6
+	}
+	if reservedBW < 0.1 { // min: 0.1
+		reservedBW = 0.1
+	}
 	return reservedBW
 }
 
@@ -443,4 +416,168 @@ func ReadTotalResults() (results []network.RoutingResult) {
 		panic(err)
 	}
 	return
+}
+
+// write Average Deadline Hit Ratio (%) to file
+func OutputADHR(results []network.RoutingResult, suffix string) {
+	// categorize results
+	var categories map[int][]network.RoutingResult = categorize(results)
+	var keys []int
+	for k := range categories {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var outputs string
+	for index, k := range keys { // for every category
+		// calculate Average Deadline Hit Ratio
+		var deadlineHitRatios []float64
+		for _, result := range categories[k] { // for every scenario
+			deadlineHitRatios = append(deadlineHitRatios, deadlineHitRatio(result))
+		}
+		averageRatio := average(deadlineHitRatios)
+		outputs += fmt.Sprintf("%d %v", k, averageRatio*100)
+		if index != len(keys)-1 {
+			outputs += fmt.Sprint("\n")
+		}
+	}
+
+	err := ioutil.WriteFile("./experiments/r2t-dsdn-config/jsonnetworks/deadline_hit_ratio_"+suffix+".data", []byte(outputs), 0777)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// write Average Delay of Flows (ms) to file
+func OutputADoF(results []network.RoutingResult, suffix string) {
+	// categorize results
+	var categories map[int][]network.RoutingResult = categorize(results)
+	var keys []int
+	for k := range categories {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var outputs string
+	for index, k := range keys { // for every category
+		var averageLagencies []float64 // average latency of all flows in this category
+
+		for _, result := range categories[k] { // for every scenario
+			var weightedTotalLatency, totalData float64 // weighted total latency and data of flows
+			for i := 0; i < len(result.Flows); i++ {    // for every flow
+				var latency float64 // latency of this flow
+				if len(result.Flows[i].Paths) == 0 {
+					latency = 60 // dropped, set the latency is very large
+				} else {
+					var latencies []float64 // latencies of all paths of this flow
+
+					for j := 0; j < len(result.Flows[i].Paths); j++ { // for every path
+						latencies = append(latencies, float64(result.Flows[i].Paths[j].Latency))
+					}
+					latency = average(latencies)
+				}
+				weightedTotalLatency += latency * result.Flows[i].Data
+				totalData += result.Flows[i].Data
+			}
+			weightedLatency := weightedTotalLatency / totalData
+			averageLagencies = append(averageLagencies, weightedLatency)
+		}
+		averagelagency := average(averageLagencies)
+		outputs += fmt.Sprintf("%d %v", k, averagelagency)
+		if index != len(keys)-1 {
+			outputs += fmt.Sprint("\n")
+		}
+	}
+	err := ioutil.WriteFile("./experiments/r2t-dsdn-config/jsonnetworks/average_delay_of_flows_"+suffix+".data", []byte(outputs), 0777)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// write Average Packet Drop Ratio (%) to file
+func OutputAPDR(results []network.RoutingResult, suffix string) {
+	// categorize results
+	var categories map[int][]network.RoutingResult = categorize(results)
+	var keys []int
+	for k := range categories {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var outputs string
+	for index, k := range keys { // for every category
+		var dropRates []float64
+		for _, result := range categories[k] { // for every scenario
+			var dropData, totalData float64
+			for i := 0; i < len(result.Flows); i++ {
+				if len(result.Flows[i].Paths) == 0 {
+					dropData += result.Flows[i].Data
+				}
+				totalData += result.Flows[i].Data
+			}
+			dropRate := dropData / totalData
+			dropRates = append(dropRates, dropRate)
+		}
+		averageDropRate := average(dropRates)
+		outputs += fmt.Sprintf("%d %v", k, averageDropRate)
+		if index != len(keys)-1 {
+			outputs += fmt.Sprint("\n")
+		}
+	}
+	err := ioutil.WriteFile("./experiments/r2t-dsdn-config/jsonnetworks/average_packet_drop_ratio_"+suffix+".data", []byte(outputs), 0777)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// write all data to files
+func OutputData(results []network.RoutingResult, suffix string) {
+	OutputADHR(results, suffix)
+	OutputADoF(results, suffix)
+	OutputAPDR(results, suffix)
+}
+
+// categorize results according to the number of flows in every scenario
+func categorize(results []network.RoutingResult) map[int][]network.RoutingResult {
+	var categories map[int][]network.RoutingResult = make(map[int][]network.RoutingResult)
+
+	for i := 0; i < len(results); i++ {
+		categories[len(results[i].Flows)] = append(categories[len(results[i].Flows)], results[i])
+	}
+
+	return categories
+}
+
+// calculate deadline hit ratio of a flow
+func deadlineHitRatio(result network.RoutingResult) float64 {
+	var rtFlows []network.Flow
+	for i := 0; i < len(result.Flows); i++ {
+		if isRtFlow(result.Flows[i]) {
+			rtFlows = append(rtFlows, result.Flows[i])
+		}
+	}
+	var hitNum int
+	for i := 0; i < len(rtFlows); i++ {
+		if deadlineHit(rtFlows[i]) {
+			hitNum++
+		}
+	}
+	return float64(hitNum) / float64(len(rtFlows))
+}
+
+// whether the deadline of an RT-flow hit
+func deadlineHit(flow network.Flow) bool {
+	if len(flow.Paths) == 0 {
+		return false
+	}
+	var lagencies []float64
+	for i := 0; i < len(flow.Paths); i++ {
+		lagencies = append(lagencies, float64(flow.Paths[i].Latency))
+	}
+	return float64(flow.Deadline) >= average(lagencies)
+}
+
+func average(nums []float64) float64 {
+	var sum float64 = 0
+	for i := 0; i < len(nums); i++ {
+		sum += nums[i]
+	}
+	return sum / float64(len(nums))
 }
