@@ -113,9 +113,10 @@ func GenerateFlowsForNet(net network.Network, num int) [][]network.Flow {
 		// numFlows := random.RandomInt(5, 20)
 
 		// there are 120 scenarios, in every scenario there are 10-30 flows, 6 scenarios have 10, 6 have 11, 6 have 12 ... 6 have 30
+		// numFlows := i/3 + 20 // debug
 		numFlows := i/6 + 10
-		// in every scenario there are [0,numFlows] RT-flows
-		numRTFlows := random.RandomInt(1, numFlows)
+		// in every scenario there are [1,numFlows-1] RT-flows
+		numRTFlows := random.RandomInt(1, numFlows-1)
 
 		flows[i] = make([]network.Flow, numFlows)
 		for j := 0; j < numFlows; j++ {
@@ -136,7 +137,10 @@ func GenerateFlowsForNet(net network.Network, num int) [][]network.Flow {
 			flows[i][j].Deadline = -1 // in non-RT flows, deadline is -1
 			if j < numRTFlows {
 				// transmission time is the sum of latency of links, if transmission time <= deadline, it can hit deadline
-				flows[i][j].Deadline = int(random.NormalRandomBM(15, 28, 22, 18))
+				// flows[i][j].Deadline = int(random.NormalRandomBM(15, 28, 22, 18))
+				// flows[i][j].Deadline = random.NormalRandomBM(15, 23, 19, 3)
+				// flows[i][j].Deadline = random.NormalRandomBM(7, 21, 16, 3)
+				flows[i][j].Deadline = random.NormalRandomBM(18, 26, 22, 3)
 			}
 		}
 	}
@@ -183,18 +187,17 @@ func GetNetAndFlows(num int) ([]network.Network, [][][]network.Flow) {
 
 // route all flows of all nets
 func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float64, dynamicReserve bool) []network.RoutingResult {
-	var bandwidth float64 = 131
 	var bandwidthNonRT float64
+	bandwidthNonRT = bandwidth * (float64(1) - reservedBW)
 
 	var results []network.RoutingResult
 	for z := 0; z < len(nets); z++ { // for every net
 		for i := 0; i < len(flows[z]); i++ { // for every scenario
-			if dynamicReserve {
-				reservedBW = DynamicReservedBW(flows[z][i])
-			}
 			nets[z].FlowIndexes = make([][][]int, len(nets[z].Nodes))
+			nets[z].RemainIndexes = make([][][]bool, len(nets[z].Nodes))
 			for k := 0; k < len(nets[z].FlowIndexes); k++ {
 				nets[z].FlowIndexes[k] = make([][]int, len(nets[z].Nodes))
+				nets[z].RemainIndexes[k] = make([][]bool, len(nets[z].Nodes))
 			}
 			for j := 0; j < len(flows[z][i]); j++ { // for every flow
 				paths, jitters, _ := network.R2tdsdnRouting(nets[z], flows[z][i][j], 15, 0.8, 0.2)
@@ -210,8 +213,15 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 					}
 				}
 			}
+			for j := 0; j < len(nets[z].FlowIndexes); j++ {
+				for k := 0; k < len(nets[z].FlowIndexes[j]); k++ {
+					nets[z].RemainIndexes[j][k] = make([]bool, len(nets[z].FlowIndexes[j][k]))
+				}
+			}
 
-			bandwidthNonRT = bandwidth * (float64(1) - reservedBW)
+			if dynamicReserve {
+				SetFinegrainedReservedBW(&nets[z], flows[z][i])
+			}
 
 			// drop some non-RT flows because of non-RT overloaded links
 			for {
@@ -225,6 +235,10 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 						var sumData float64
 						for l := 0; l < len(nets[z].FlowIndexes[j][k]); l++ {
 							sumData += dataPerPath(flows[z][i][nets[z].FlowIndexes[j][k][l]])
+						}
+
+						if dynamicReserve {
+							bandwidthNonRT = bandwidth * (float64(1) - nets[z].ReservedBW[j][k])
 						}
 
 						if sumData <= bandwidthNonRT {
@@ -242,7 +256,6 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 									break
 								}
 							}
-							continue
 						}
 					}
 				}
@@ -271,7 +284,23 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 
 						// overloaded, remove a flow randomly
 						if len(nets[z].FlowIndexes[j][k]) != 0 {
-							l := random.RandomInt(0, len(nets[z].FlowIndexes[j][k])-1)
+							var l int
+							if dynamicReserve {
+								var enableIndexes []int
+								for p := 0; p < len(nets[z].RemainIndexes[j][k]); p++ {
+									if !nets[z].RemainIndexes[j][k][p] {
+										enableIndexes = append(enableIndexes, p)
+									}
+								}
+								if len(enableIndexes) == 0 {
+									l = random.RandomInt(0, len(nets[z].FlowIndexes[j][k])-1)
+								} else {
+									index := random.RandomInt(0, len(enableIndexes)-1)
+									l = enableIndexes[index]
+								}
+							} else {
+								l = random.RandomInt(0, len(nets[z].FlowIndexes[j][k])-1)
+							}
 							rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][l]], nets[z].FlowIndexes[j][k][l])
 							deleted = true
 						}
@@ -299,7 +328,7 @@ func dataPerPath(flow network.Flow) float64 {
 	return flow.Data / float64(len(flow.Paths))
 }
 
-// calculate reserved bandwidth
+// calculate reserved bandwidth according to flows state
 func DynamicReservedBW(flows []network.Flow) float64 {
 	// configure reserved bandwidth dynamically according to the ratio of rtData
 	var rtData, totalData float64
@@ -321,8 +350,152 @@ func DynamicReservedBW(flows []network.Flow) float64 {
 	return reservedBW
 }
 
+// calculate reserved bandwidth according to network, flows and routing state
+func DynamicReservedBWAfterRouting(net network.Network, flows []network.Flow) float64 {
+	// configure reserved bandwidth dynamically according to rtData and bandwidth of every link
+	var reservedBW, totalRtData, totalBandwidth float64
+	for i := 0; i < len(net.FlowIndexes); i++ {
+		for j := i + 1; j < len(net.FlowIndexes[i]); j++ { // for every link [i][j]
+			if len(net.FlowIndexes[i][j]) == 0 {
+				continue // only consider the links with flows, including rt and non-rt flows
+			}
+			// get the sum of rt-data on this link
+			var rtData float64
+			for k := 0; k < len(net.FlowIndexes[i][j]); k++ {
+				if isRtFlow(flows[net.FlowIndexes[i][j][k]]) {
+					rtData += dataPerPath(flows[net.FlowIndexes[i][j][k]])
+				}
+			}
+			totalRtData += rtData
+			totalBandwidth += bandwidth
+		}
+	}
+	reservedBW = totalRtData / totalBandwidth
+	if reservedBW > 0.9 { // max: 0.6
+		reservedBW = 0.9
+	}
+	if reservedBW < 0.1 { // min: 0.1
+		reservedBW = 0.1
+	}
+	reservedBW *= float64(2) / float64(3)
+	return reservedBW
+}
+
+// set reserved bandwidth for every link of the network, according to network, flows and routing state
+func SetReservedBW(net *network.Network, flows []network.Flow) {
+	net.ReservedBW = make([][]float64, len(net.Nodes))
+	for i := 0; i < len(net.ReservedBW); i++ {
+		net.ReservedBW[i] = make([]float64, len(net.Nodes))
+	}
+	// set reserved bandwidth to every link according to rtData and bandwidth
+	var reservedBW float64
+	for i := 0; i < len(net.FlowIndexes); i++ {
+		for j := i + 1; j < len(net.FlowIndexes[i]); j++ { // for every link [i][j]
+			// get the sum of rt-data on this link
+			var rtData float64
+			for k := 0; k < len(net.FlowIndexes[i][j]); k++ {
+				if isRtFlow(flows[net.FlowIndexes[i][j][k]]) {
+					rtData += dataPerPath(flows[net.FlowIndexes[i][j][k]])
+				}
+			}
+			reservedBW = rtData / bandwidth
+
+			// switch {
+			// case reservedBW <= 0.4:
+			// 	reservedBW = reservedBW
+			// case reservedBW > 0.4 && reservedBW <= 0.8:
+			// 	reservedBW = 0.4 + (reservedBW-0.4)*0.5
+			// case reservedBW > 0.8 && reservedBW < 1:
+			// 	reservedBW = 0.4 + (0.8-0.4)*0.5 + (reservedBW-0.8)*0.25
+			// default:
+			// 	reservedBW = 0.4 + (0.8-0.4)*0.5 + (1-0.8)*0.25
+			// }
+			if reservedBW > 0.4 {
+				reservedBW = 0.4
+			}
+			reservedBW *= 1.1
+			// switch {
+			// case reservedBW <= 0.4:
+			// 	reservedBW = reservedBW
+			// default:
+			// 	reservedBW = 0.4 + (reservedBW-0.4)*0.5
+			// }
+			// if reservedBW > 0.4+(0.8-0.4)*0.5 {
+			// 	reservedBW = 0.4 + (0.8-0.4)*0.5
+			// }
+			net.ReservedBW[i][j] = reservedBW
+		}
+	}
+}
+
+// set finegrained reserved bandwidth for every link of the network, according to network, flows and routing state
+func SetFinegrainedReservedBW(net *network.Network, flows []network.Flow) {
+	net.ReservedBW = make([][]float64, len(net.Nodes))
+	for i := 0; i < len(net.ReservedBW); i++ {
+		net.ReservedBW[i] = make([]float64, len(net.Nodes))
+	}
+	// set finegrained reserved bandwidth to every link according to rtData and bandwidth
+	var reservedBW float64
+	for i := 0; i < len(net.FlowIndexes); i++ {
+		for j := i + 1; j < len(net.FlowIndexes[i]); j++ { // for every link [i][j]
+			var rtDatas []float64
+			var rtIndexes []int
+
+			for k := 0; k < len(net.FlowIndexes[i][j]); k++ {
+				if isRtFlow(flows[net.FlowIndexes[i][j][k]]) {
+					rtDatas = append(rtDatas, dataPerPath(flows[net.FlowIndexes[i][j][k]]))
+					rtIndexes = append(rtIndexes, k)
+				}
+			} // len(rtDatas) == len(rtIndexes) == num of rt flows on link i,j
+
+			var maxSum float64
+			var pick []bool
+			maxSum, pick = maxElements(rtDatas, bandwidth*0.6)
+
+			reservedBW = maxSum / bandwidth
+			for k := 0; k < len(pick); k++ {
+				if pick[k] {
+					net.RemainIndexes[i][j][rtIndexes[k]] = true // elements in rtIndexes are keys of net.FlowIndexes[i][j] and net.RemainIndexes[i][j]
+				}
+			}
+
+			net.ReservedBW[i][j] = reservedBW
+		}
+	}
+}
+
+// pick some elements with max sum less than limit
+func maxElements(elements []float64, limit float64) (float64, []bool) {
+	var remain []bool = make([]bool, len(elements))
+	var max float64
+
+	var dp func(limit float64, index int, pick []bool) (float64, []bool)
+	dp = func(limit float64, index int, pick []bool) (float64, []bool) {
+		var pickCopy []bool = make([]bool, len(pick))
+		copy(pickCopy, pick)
+		if limit < 0 {
+			return -100000000, pickCopy
+		}
+		if index >= len(elements) {
+			return 0, pickCopy
+		}
+		a, picka := dp(limit-elements[index], index+1, pickCopy)
+		b, pickb := dp(limit, index+1, pickCopy)
+		a = elements[index] + a
+		picka[index] = true
+		if a > b {
+			return a, picka
+		}
+		return b, pickb
+	}
+
+	max, remain = dp(limit, 0, remain)
+
+	return max, remain
+}
+
 func isRtFlow(flow network.Flow) bool {
-	return flow.Deadline != -1
+	return flow.Deadline >= 0
 }
 
 func rmFlowFromLink(net *network.Network, head, tail int, flow *network.Flow, flowIndex int) {
@@ -348,6 +521,7 @@ FINDINDEX:
 			j++
 		}
 		net.FlowIndexes[smaller][bigger] = append(net.FlowIndexes[smaller][bigger][:j], net.FlowIndexes[smaller][bigger][j+1:]...)
+		net.RemainIndexes[smaller][bigger] = append(net.RemainIndexes[smaller][bigger][:j], net.RemainIndexes[smaller][bigger][j+1:]...)
 	}
 
 	// remove path of the flow
@@ -516,7 +690,7 @@ func OutputAPDR(results []network.RoutingResult, suffix string) {
 			dropRates = append(dropRates, dropRate)
 		}
 		averageDropRate := average(dropRates)
-		outputs += fmt.Sprintf("%d %v", k, averageDropRate)
+		outputs += fmt.Sprintf("%d %v", k, averageDropRate*100)
 		if index != len(keys)-1 {
 			outputs += fmt.Sprint("\n")
 		}
@@ -527,11 +701,87 @@ func OutputAPDR(results []network.RoutingResult, suffix string) {
 	}
 }
 
+// write Average Non-RT Packet Drop Ratio (%) to file
+func OutputANRPDR(results []network.RoutingResult, suffix string) {
+	// categorize results
+	var categories map[int][]network.RoutingResult = categorize(results)
+	var keys []int
+	for k := range categories {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var outputs string
+	for index, k := range keys { // for every category
+		var dropRates []float64
+		for _, result := range categories[k] { // for every scenario
+			var dropData, totalData float64
+			for i := 0; i < len(result.Flows); i++ {
+				if !isRtFlow(result.Flows[i]) {
+					if len(result.Flows[i].Paths) == 0 {
+						dropData += result.Flows[i].Data
+					}
+					totalData += result.Flows[i].Data
+				}
+			}
+			dropRate := dropData / totalData
+			dropRates = append(dropRates, dropRate)
+		}
+		averageDropRate := average(dropRates)
+		outputs += fmt.Sprintf("%d %v", k, averageDropRate*100)
+		if index != len(keys)-1 {
+			outputs += fmt.Sprint("\n")
+		}
+	}
+	err := ioutil.WriteFile("./experiments/r2t-dsdn-config/jsonnetworks/average_non_rt_packet_drop_ratio_"+suffix+".data", []byte(outputs), 0777)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// write Average RT Packet Drop Ratio (%) to file
+func OutputARPDR(results []network.RoutingResult, suffix string) {
+	// categorize results
+	var categories map[int][]network.RoutingResult = categorize(results)
+	var keys []int
+	for k := range categories {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var outputs string
+	for index, k := range keys { // for every category
+		var dropRates []float64
+		for _, result := range categories[k] { // for every scenario
+			var dropData, totalData float64
+			for i := 0; i < len(result.Flows); i++ {
+				if isRtFlow(result.Flows[i]) {
+					if len(result.Flows[i].Paths) == 0 {
+						dropData += result.Flows[i].Data
+					}
+					totalData += result.Flows[i].Data
+				}
+			}
+			dropRate := dropData / totalData
+			dropRates = append(dropRates, dropRate)
+		}
+		averageDropRate := average(dropRates)
+		outputs += fmt.Sprintf("%d %v", k, averageDropRate*100)
+		if index != len(keys)-1 {
+			outputs += fmt.Sprint("\n")
+		}
+	}
+	err := ioutil.WriteFile("./experiments/r2t-dsdn-config/jsonnetworks/average_rt_packet_drop_ratio_"+suffix+".data", []byte(outputs), 0777)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // write all data to files
 func OutputData(results []network.RoutingResult, suffix string) {
 	OutputADHR(results, suffix)
 	OutputADoF(results, suffix)
 	OutputAPDR(results, suffix)
+	// OutputANRPDR(results, suffix)
+	// OutputARPDR(results, suffix)
 }
 
 // categorize results according to the number of flows in every scenario
@@ -552,14 +802,17 @@ func deadlineHitRatio(result network.RoutingResult) float64 {
 		if isRtFlow(result.Flows[i]) {
 			rtFlows = append(rtFlows, result.Flows[i])
 		}
+
 	}
-	var hitNum int
+
+	var hitData, totalData float64
 	for i := 0; i < len(rtFlows); i++ {
 		if deadlineHit(rtFlows[i]) {
-			hitNum++
+			hitData += rtFlows[i].Data
 		}
+		totalData += rtFlows[i].Data
 	}
-	return float64(hitNum) / float64(len(rtFlows))
+	return hitData / totalData
 }
 
 // whether the deadline of an RT-flow hit
@@ -571,7 +824,7 @@ func deadlineHit(flow network.Flow) bool {
 	for i := 0; i < len(flow.Paths); i++ {
 		lagencies = append(lagencies, float64(flow.Paths[i].Latency))
 	}
-	return float64(flow.Deadline) >= average(lagencies)
+	return flow.Deadline >= average(lagencies)
 }
 
 func average(nums []float64) float64 {

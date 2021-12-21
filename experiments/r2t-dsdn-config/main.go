@@ -6,8 +6,13 @@ import (
 
 func main() {
 	numNets := 50
+	tools.GenerateAllNets(numNets)
+	tools.GenerateAllFlows(numNets, 126)
+
+	// debug
+	// numNets := 10
 	// tools.GenerateAllNets(numNets)
-	// tools.GenerateAllFlows(numNets, 126)
+	// tools.GenerateAllFlows(numNets, 33)
 
 	nets, flows := tools.GetNetAndFlows(numNets)
 
