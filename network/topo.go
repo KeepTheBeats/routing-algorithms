@@ -29,6 +29,7 @@ type Path struct {
 }
 
 type RoutingResult struct {
-	Net   Network `json:"net"`
-	Flows []Flow  `json:"flows"`
+	Net         Network `json:"net"`
+	Flows       []Flow  `json:"flows"`
+	RoutingTime float64 `json:"routingtime"`
 }

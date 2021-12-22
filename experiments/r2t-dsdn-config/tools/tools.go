@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"routing-algorithms/network"
 	"routing-algorithms/random"
@@ -113,7 +114,7 @@ func GenerateFlowsForNet(net network.Network, num int) [][]network.Flow {
 		// numFlows := random.RandomInt(5, 20)
 
 		// there are 120 scenarios, in every scenario there are 10-30 flows, 6 scenarios have 10, 6 have 11, 6 have 12 ... 6 have 30
-		// numFlows := i/3 + 20 // debug
+		// numFlows := i/1 + 10 // debug
 		numFlows := i/6 + 10
 		// in every scenario there are [1,numFlows-1] RT-flows
 		numRTFlows := random.RandomInt(1, numFlows-1)
@@ -193,6 +194,7 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 	var results []network.RoutingResult
 	for z := 0; z < len(nets); z++ { // for every net
 		for i := 0; i < len(flows[z]); i++ { // for every scenario
+			var startTime time.Time = time.Now()
 			nets[z].FlowIndexes = make([][][]int, len(nets[z].Nodes))
 			nets[z].RemainIndexes = make([][][]bool, len(nets[z].Nodes))
 			for k := 0; k < len(nets[z].FlowIndexes); k++ {
@@ -246,15 +248,20 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 						}
 
 						if sumData <= bandwidth { // non-RT overloaded
-							// if a non-RT flow is on this link, remove it from this link
+							// if a non-RT flow is on this link, remove one
+							var enableIndexes []int
 							for l := 0; l < len(nets[z].FlowIndexes[j][k]); l++ {
 								if !isRtFlow(flows[z][i][nets[z].FlowIndexes[j][k][l]]) {
-
-									rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][l]], nets[z].FlowIndexes[j][k][l])
-
-									deleted = true
-									break
+									enableIndexes = append(enableIndexes, l)
 								}
+							}
+							if len(enableIndexes) > 0 {
+								index := random.RandomInt(0, len(enableIndexes)-1)
+								l := enableIndexes[index]
+
+								rmFlowFromLink(&nets[z], j, k, &flows[z][i][nets[z].FlowIndexes[j][k][l]], nets[z].FlowIndexes[j][k][l])
+
+								deleted = true
 							}
 						}
 					}
@@ -311,10 +318,13 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 				}
 			}
 
+			var endTime time.Time = time.Now()
+			routingTime := float64(endTime.Sub(startTime)) / float64(time.Millisecond)
 			// for every scenario, record routing result
 			newResult := network.RoutingResult{
-				Net:   nets[z],
-				Flows: flows[z][i],
+				Net:         nets[z],
+				Flows:       flows[z][i],
+				RoutingTime: routingTime,
 			}
 			results = append(results, newResult)
 
@@ -646,7 +656,7 @@ func OutputADoF(results []network.RoutingResult, suffix string) {
 					for j := 0; j < len(result.Flows[i].Paths); j++ { // for every path
 						latencies = append(latencies, float64(result.Flows[i].Paths[j].Latency))
 					}
-					latency = average(latencies)
+					latency = average(latencies) + result.RoutingTime/float64(k)
 				}
 				weightedTotalLatency += latency * result.Flows[i].Data
 				totalData += result.Flows[i].Data
@@ -775,13 +785,41 @@ func OutputARPDR(results []network.RoutingResult, suffix string) {
 	}
 }
 
+// write Average Routing Time of Flows (ms) to file
+func OutputARToF(results []network.RoutingResult, suffix string) {
+	// categorize results
+	var categories map[int][]network.RoutingResult = categorize(results)
+	var keys []int
+	for k := range categories {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var outputs string
+	for index, k := range keys { // for every category
+		var routingTimes []float64
+		for _, result := range categories[k] { // for every scenario
+			routingTimes = append(routingTimes, result.RoutingTime)
+		}
+		averageRoutingTime := average(routingTimes)
+		outputs += fmt.Sprintf("%d %v", k, averageRoutingTime/float64(k))
+		if index != len(keys)-1 {
+			outputs += fmt.Sprint("\n")
+		}
+	}
+	err := ioutil.WriteFile("./experiments/r2t-dsdn-config/jsonnetworks/average_routing_time_of_flows_"+suffix+".data", []byte(outputs), 0777)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // write all data to files
 func OutputData(results []network.RoutingResult, suffix string) {
-	OutputADHR(results, suffix)
-	OutputADoF(results, suffix)
-	OutputAPDR(results, suffix)
-	// OutputANRPDR(results, suffix)
-	// OutputARPDR(results, suffix)
+	OutputADHR(results, suffix)   // Average Deadline Hit Ratio (%)
+	OutputADoF(results, suffix)   // Average Delay of Flows (ms)
+	OutputAPDR(results, suffix)   // Average Packet Drop Ratio (%)
+	OutputARToF(results, suffix)  // Average Routing Time of Flows (ms)
+	OutputANRPDR(results, suffix) // Average Non-RT Packet Drop Ratio (%)
+	OutputARPDR(results, suffix)  // Average RT Packet Drop Ratio (%)
 }
 
 // categorize results according to the number of flows in every scenario
