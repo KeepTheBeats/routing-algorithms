@@ -483,17 +483,18 @@ func maxElements(elements []float64, limit float64) (float64, []bool) {
 	dp = func(limit float64, index int, pick []bool) (float64, []bool) {
 		var pickCopy []bool = make([]bool, len(pick))
 		copy(pickCopy, pick)
-		if limit < 0 {
+		if limit < 0 { // sum cannot be larger than limit
 			return -100000000, pickCopy
 		}
-		if index >= len(elements) {
+		if index >= len(elements) { // traversed all
 			return 0, pickCopy
 		}
+		// two choices, choose elements[index] or not choose
 		a, picka := dp(limit-elements[index], index+1, pickCopy)
 		b, pickb := dp(limit, index+1, pickCopy)
 		a = elements[index] + a
 		picka[index] = true
-		if a > b {
+		if a > b { // pick the choice with larger sum
 			return a, picka
 		}
 		return b, pickb
@@ -585,8 +586,8 @@ func ReadResults() (nets []network.Network, flows [][][]network.Flow) {
 }
 
 // write results with struct []network.RoutingResult
-func WriteTotalResults(results []network.RoutingResult) {
-	WriteJson(results, "./experiments/r2t-dsdn-config/jsonnetworks/total_results.json")
+func WriteTotalResults(results []network.RoutingResult, suffix string) {
+	WriteJson(results, "./experiments/r2t-dsdn-config/jsonnetworks/total_results_"+suffix+".json")
 }
 
 // read results with struct []network.RoutingResult
@@ -814,12 +815,12 @@ func OutputARToF(results []network.RoutingResult, suffix string) {
 
 // write all data to files
 func OutputData(results []network.RoutingResult, suffix string) {
-	OutputADHR(results, suffix)   // Average Deadline Hit Ratio (%)
-	OutputADoF(results, suffix)   // Average Delay of Flows (ms)
-	OutputAPDR(results, suffix)   // Average Packet Drop Ratio (%)
-	OutputARToF(results, suffix)  // Average Routing Time of Flows (ms)
-	OutputANRPDR(results, suffix) // Average Non-RT Packet Drop Ratio (%)
-	OutputARPDR(results, suffix)  // Average RT Packet Drop Ratio (%)
+	OutputADHR(results, suffix)  // Average Deadline Hit Ratio (%)
+	OutputADoF(results, suffix)  // Average Delay of Flows (ms)
+	OutputAPDR(results, suffix)  // Average Packet Drop Ratio (%)
+	OutputARToF(results, suffix) // Average Routing Time of Flows (ms)
+	// OutputANRPDR(results, suffix) // Average Non-RT Packet Drop Ratio (%)
+	// OutputARPDR(results, suffix)  // Average RT Packet Drop Ratio (%)
 }
 
 // categorize results according to the number of flows in every scenario

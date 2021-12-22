@@ -27,7 +27,7 @@ func main() {
 
 	fmt.Println("-----------10--------------")
 	results = tools.RouteAll(nets, flows, 0.10, false)
-	// tools.WriteTotalResults(results)
+	tools.WriteTotalResults(results, "10")
 	tools.OutputData(results, "10")
 	// results := tools.ReadTotalResults()
 	// fmt.Println(len(results))
@@ -45,6 +45,7 @@ func main() {
 
 	fmt.Println("-----------15--------------")
 	results = tools.RouteAll(nets, flows, 0.15, false)
+	tools.WriteTotalResults(results, "15")
 	tools.OutputData(results, "15")
 	// fmt.Println("-----------20--------------")
 	// results = tools.RouteAll(nets, flows, 0.20, false)
@@ -52,6 +53,7 @@ func main() {
 
 	fmt.Println("-----------25--------------")
 	results = tools.RouteAll(nets, flows, 0.25, false)
+	tools.WriteTotalResults(results, "25")
 	tools.OutputData(results, "25")
 
 	// fmt.Println("-----------30--------------")
@@ -62,5 +64,6 @@ func main() {
 	// tools.OutputData(results, "40")
 	fmt.Println("-----------dynamic--------------")
 	results = tools.RouteAll(nets, flows, 0.2, true)
+	tools.WriteTotalResults(results, "dynamic")
 	tools.OutputData(results, "dynamic")
 }
