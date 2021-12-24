@@ -25,10 +25,10 @@ func main() {
 	// // tools.WriteTotalResults(results)
 	// tools.OutputData(results, "5")
 
-	fmt.Println("-----------10--------------")
-	results = tools.RouteAll(nets, flows, 0.10, false)
-	tools.WriteTotalResults(results, "10")
-	tools.OutputData(results, "10")
+	// fmt.Println("-----------10--------------")
+	// results = tools.RouteAll(nets, flows, 0.10, false)
+	// tools.WriteTotalResults(results, "10")
+	// tools.OutputData(results, "10")
 	// results := tools.ReadTotalResults()
 	// fmt.Println(len(results))
 	// for i := 44; i < 47; i++ {
@@ -49,6 +49,7 @@ func main() {
 	tools.OutputData(results, "15")
 	// fmt.Println("-----------20--------------")
 	// results = tools.RouteAll(nets, flows, 0.20, false)
+	// tools.WriteTotalResults(results, "20")
 	// tools.OutputData(results, "20")
 
 	fmt.Println("-----------25--------------")
@@ -58,7 +59,12 @@ func main() {
 
 	// fmt.Println("-----------30--------------")
 	// results = tools.RouteAll(nets, flows, 0.30, false)
+	// tools.WriteTotalResults(results, "30")
 	// tools.OutputData(results, "30")
+	fmt.Println("-----------35--------------")
+	results = tools.RouteAll(nets, flows, 0.35, false)
+	tools.WriteTotalResults(results, "35")
+	tools.OutputData(results, "35")
 	// fmt.Println("-----------40--------------")
 	// results = tools.RouteAll(nets, flows, 0.40, false)
 	// tools.OutputData(results, "40")

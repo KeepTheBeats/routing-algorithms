@@ -815,12 +815,12 @@ func OutputARToF(results []network.RoutingResult, suffix string) {
 
 // write all data to files
 func OutputData(results []network.RoutingResult, suffix string) {
-	OutputADHR(results, suffix)  // Average Deadline Hit Ratio (%)
-	OutputADoF(results, suffix)  // Average Delay of Flows (ms)
-	OutputAPDR(results, suffix)  // Average Packet Drop Ratio (%)
-	OutputARToF(results, suffix) // Average Routing Time of Flows (ms)
-	// OutputANRPDR(results, suffix) // Average Non-RT Packet Drop Ratio (%)
-	// OutputARPDR(results, suffix)  // Average RT Packet Drop Ratio (%)
+	OutputADHR(results, suffix)   // Average Deadline Hit Ratio (%)
+	OutputADoF(results, suffix)   // Average Delay of Flows (ms)
+	OutputAPDR(results, suffix)   // Average Packet Drop Ratio (%)
+	OutputARToF(results, suffix)  // Average Routing Time of Flows (ms)
+	OutputANRPDR(results, suffix) // Average Non-RT Packet Drop Ratio (%)
+	OutputARPDR(results, suffix)  // Average RT Packet Drop Ratio (%)
 }
 
 // categorize results according to the number of flows in every scenario
