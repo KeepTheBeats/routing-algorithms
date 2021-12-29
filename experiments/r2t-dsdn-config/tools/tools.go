@@ -841,12 +841,13 @@ func deadlineHitRatio(result network.RoutingResult) float64 {
 		if isRtFlow(result.Flows[i]) {
 			rtFlows = append(rtFlows, result.Flows[i])
 		}
-
 	}
+
+	averageRoutingTime := result.RoutingTime / float64(len(result.Flows))
 
 	var hitData, totalData float64
 	for i := 0; i < len(rtFlows); i++ {
-		if deadlineHit(rtFlows[i]) {
+		if deadlineHit(rtFlows[i], averageRoutingTime) {
 			hitData += rtFlows[i].Data
 		}
 		totalData += rtFlows[i].Data
@@ -855,7 +856,7 @@ func deadlineHitRatio(result network.RoutingResult) float64 {
 }
 
 // whether the deadline of an RT-flow hit
-func deadlineHit(flow network.Flow) bool {
+func deadlineHit(flow network.Flow, routingTime float64) bool {
 	if len(flow.Paths) == 0 {
 		return false
 	}
@@ -863,7 +864,7 @@ func deadlineHit(flow network.Flow) bool {
 	for i := 0; i < len(flow.Paths); i++ {
 		lagencies = append(lagencies, float64(flow.Paths[i].Latency))
 	}
-	return flow.Deadline >= average(lagencies)
+	return flow.Deadline >= average(lagencies)+routingTime
 }
 
 func average(nums []float64) float64 {
