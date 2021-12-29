@@ -1,0 +1,19 @@
+#!/usr/bin/env python
+
+import random
+
+i = 1
+
+while(i <= 50):
+	ranNum = random.uniform(1,10000)
+	#node = random.randint(8,20)
+	node = 20
+	scale = 2 * node
+	if (i<10):
+		fi = open("net0"+str(i)+".script","w+")
+	else:
+		fi = open("net"+str(i)+".script","w+")
+	content = "geo 1 "+str(ranNum)+"\n"+str(node)+" "+str(scale)+" 3 0.3"
+	fi.write(content)
+	fi.close()
+	i = i+1

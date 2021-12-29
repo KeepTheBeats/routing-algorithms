@@ -613,7 +613,7 @@ func OutputADHR(results []network.RoutingResult, suffix string) {
 	}
 	sort.Ints(keys)
 	var outputs string
-	for index, k := range keys { // for every category
+	for index, k := range keys { // for every category, i.e. scenario group
 		// calculate Average Deadline Hit Ratio
 		var deadlineHitRatios []float64
 		for _, result := range categories[k] { // for every scenario
@@ -642,7 +642,7 @@ func OutputADoF(results []network.RoutingResult, suffix string) {
 	}
 	sort.Ints(keys)
 	var outputs string
-	for index, k := range keys { // for every category
+	for index, k := range keys { // for every category, i.e. scenario group
 		var averageLagencies []float64 // average latency of all flows in this category
 
 		for _, result := range categories[k] { // for every scenario
@@ -687,7 +687,7 @@ func OutputAPDR(results []network.RoutingResult, suffix string) {
 	}
 	sort.Ints(keys)
 	var outputs string
-	for index, k := range keys { // for every category
+	for index, k := range keys { // for every category, i.e. scenario group
 		var dropRates []float64
 		for _, result := range categories[k] { // for every scenario
 			var dropData, totalData float64
@@ -722,7 +722,7 @@ func OutputANRPDR(results []network.RoutingResult, suffix string) {
 	}
 	sort.Ints(keys)
 	var outputs string
-	for index, k := range keys { // for every category
+	for index, k := range keys { // for every category, i.e. scenario group
 		var dropRates []float64
 		for _, result := range categories[k] { // for every scenario
 			var dropData, totalData float64
@@ -759,7 +759,7 @@ func OutputARPDR(results []network.RoutingResult, suffix string) {
 	}
 	sort.Ints(keys)
 	var outputs string
-	for index, k := range keys { // for every category
+	for index, k := range keys { // for every category, i.e. scenario group
 		var dropRates []float64
 		for _, result := range categories[k] { // for every scenario
 			var dropData, totalData float64
@@ -796,7 +796,7 @@ func OutputARToF(results []network.RoutingResult, suffix string) {
 	}
 	sort.Ints(keys)
 	var outputs string
-	for index, k := range keys { // for every category
+	for index, k := range keys { // for every category, i.e. scenario group
 		var routingTimes []float64
 		for _, result := range categories[k] { // for every scenario
 			routingTimes = append(routingTimes, result.RoutingTime)
