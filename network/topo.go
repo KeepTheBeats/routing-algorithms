@@ -29,7 +29,9 @@ type Path struct {
 }
 
 type RoutingResult struct {
-	Net         Network `json:"net"`
-	Flows       []Flow  `json:"flows"`
-	RoutingTime float64 `json:"routingtime"`
+	Net             Network `json:"net"`
+	Flows           []Flow  `json:"flows"`
+	RoutingTime     float64 `json:"routingtime"`
+	DynamicReserve  bool    `json:"dynamicreserve"`
+	FixedReservedBW float64 `json:"fixedreservedrb"`
 }

@@ -369,9 +369,11 @@ func RouteAll(nets []network.Network, flows [][][]network.Flow, reservedBW float
 			routingTime := float64(endTime.Sub(startTime)) / float64(time.Millisecond)
 			// for every scenario, record routing result
 			newResult := network.RoutingResult{
-				Net:         nets[z],
-				Flows:       flows[z][i],
-				RoutingTime: routingTime,
+				Net:             nets[z],
+				Flows:           flows[z][i],
+				RoutingTime:     routingTime,
+				DynamicReserve:  dynamicReserve,
+				FixedReservedBW: reservedBW,
 			}
 			results = append(results, newResult)
 
@@ -860,6 +862,66 @@ func OutputARToF(results []network.RoutingResult, suffix string) {
 	}
 }
 
+// write Average Reserved Bandwidth Idle Ratio (%) to file
+func OutputARBIR(results []network.RoutingResult, suffix string) {
+	// categorize results
+	var categories map[int][]network.RoutingResult = categorize(results)
+	var keys []int
+	for k := range categories {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	var outputs string
+	for index, k := range keys { // for every category, i.e. scenario group
+		var idleRatios []float64
+		for _, result := range categories[k] { // for every scenario
+			var idleRB, totalRB float64
+
+			for i := 0; i < len(result.Net.Links); i++ {
+				for j := 0; j < len(result.Net.Links[i]); j++ {
+					// only do computation for the links used to transmit data
+					if len(result.Net.FlowIndexes[i][j]) == 0 {
+						continue
+					}
+
+					// get reserved bandwidth on link (i,j)
+					reservedBandwidth := bandwidth * result.FixedReservedBW
+					if result.DynamicReserve {
+						reservedBandwidth = bandwidth * result.Net.ReservedBW[i][j]
+					}
+					totalRB += reservedBandwidth
+
+					// get the sum of rt data on link (i,j)
+					var rtData float64
+					for l := 0; l < len(result.Net.FlowIndexes[i][j]); l++ {
+						if isRtFlow(result.Flows[result.Net.FlowIndexes[i][j][l]]) {
+							rtData += dataPerPath(result.Flows[result.Net.FlowIndexes[i][j][l]])
+						}
+					}
+					idleThisLink := reservedBandwidth - rtData
+					if idleThisLink < 0 {
+						idleThisLink = 0
+					}
+					idleRB += idleThisLink
+				}
+			}
+
+			idleRatio := idleRB / totalRB
+			idleRatios = append(idleRatios, idleRatio)
+		}
+		averageIdleRatio := average(idleRatios)
+
+		outputs += fmt.Sprintf("%d %v", k, averageIdleRatio*100)
+		if index != len(keys)-1 {
+			outputs += fmt.Sprint("\n")
+		}
+	}
+	err := ioutil.WriteFile("./experiments/r2t-dsdn-config/jsonnetworks/average_reserved_bandwidth_idle_ratio_"+suffix+".data", []byte(outputs), 0777)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // write all data to files
 func OutputData(results []network.RoutingResult, suffix string) {
 	OutputADHR(results, suffix)   // Average Deadline Hit Ratio (%)
@@ -868,6 +930,7 @@ func OutputData(results []network.RoutingResult, suffix string) {
 	OutputARToF(results, suffix)  // Average Routing Time of Flows (ms)
 	OutputANRPDR(results, suffix) // Average Non-RT Packet Drop Ratio (%)
 	OutputARPDR(results, suffix)  // Average RT Packet Drop Ratio (%)
+	OutputARBIR(results, suffix)  // Average Reserved Bandwidth Idle Ratio (%)
 }
 
 // categorize results according to the number of flows in every scenario
