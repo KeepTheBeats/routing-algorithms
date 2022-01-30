@@ -148,6 +148,53 @@ func GenerateFlowsForNet(net network.Network, num int) [][]network.Flow {
 	return flows
 }
 
+// generate num continuous scenarios for net
+func GenerateContinuousFlowsForNet(net network.Network, num int) [][]network.Flow {
+	// generate num scenarios
+	var flows [][]network.Flow = make([][]network.Flow, num)
+	var maxFlowNum int = 30
+	// there are 120 scenarios, in every scenario there are 10-30 flows, 6 scenarios have 10, 6 have 11, 6 have 12 ... 6 have 30
+
+	for i := 0; i < 6; i++ { // first 6 scenarios have 30 flows
+		numFlows := maxFlowNum
+
+		flows[i] = make([]network.Flow, numFlows)
+		for j := 0; j < numFlows; j++ {
+			// generate source and destination
+			flows[i][j].Source = random.RandomInt(0, len(net.Nodes)-1)
+			flows[i][j].Destination = random.RandomInt(0, len(net.Nodes)-1)
+			for flows[i][j].Source == flows[i][j].Destination {
+				flows[i][j].Destination = random.RandomInt(0, len(net.Nodes)-1)
+			}
+
+			// generate desirableJitter
+			flows[i][j].DesirableJitter = int(random.NormalRandomBM(15, 40, 30, 15))
+
+			// generate data
+			flows[i][j].Data = random.NormalRandomBM(30, 90, 60, 40)
+
+			// generate deadline
+			flows[i][j].Deadline = -1 // in non-RT flows, deadline is -1
+
+			if j%3 == 0 { //in every 3 flows, there is 1 RT flow, which is similar with the experiments of original R2T-DSDN
+				// transmission time is the sum of latency of links, if transmission time <= deadline, it can hit deadline
+				// flows[i][j].Deadline = int(random.NormalRandomBM(15, 28, 22, 18))
+				// flows[i][j].Deadline = random.NormalRandomBM(15, 23, 19, 3)
+				// flows[i][j].Deadline = random.NormalRandomBM(7, 21, 16, 3)
+				flows[i][j].Deadline = random.NormalRandomBM(18, 26, 22, 3)
+			}
+		}
+	}
+
+	for i := 6; i < num; i++ { // other scenarios
+		numFlows := maxFlowNum - i/6 // in No.i scenario, there are numFlows flows
+		flows[i] = make([]network.Flow, numFlows)
+		copy(flows[i], flows[i-6][:len(flows[i-6])-1]) // pick the first numFlows elements of flows[i-6]
+	}
+
+	return flows
+}
+
 // read flows from json file
 func ReadJsonFlows(filePath string) [][]network.Flow {
 	flowData, err := ioutil.ReadFile(filePath)
@@ -168,7 +215,7 @@ func GenerateAllFlows(numNet, numScenario int) {
 	for i := 1; i <= numNet; i++ {
 		netName = GetNetName(i)
 		net := ReadJsonNet("./experiments/r2t-dsdn-config/jsonnetworks/" + netName + ".json")
-		flows := GenerateFlowsForNet(net, numScenario)
+		flows := GenerateContinuousFlowsForNet(net, numScenario)
 		WriteJson(flows, "./experiments/r2t-dsdn-config/jsonnetworks/"+netName+"_flows.json")
 	}
 }
@@ -834,7 +881,7 @@ func categorize(results []network.RoutingResult) map[int][]network.RoutingResult
 	return categories
 }
 
-// calculate deadline hit ratio of a flow
+// calculate deadline hit ratio of a scenario
 func deadlineHitRatio(result network.RoutingResult) float64 {
 	var rtFlows []network.Flow
 	for i := 0; i < len(result.Flows); i++ {
