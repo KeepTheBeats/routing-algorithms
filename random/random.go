@@ -91,3 +91,8 @@ func NormalRandomBM(lowerBound, upperBound, miu, sigma float64) float64 {
 func RandomInt(start, end int) int {
 	return rand.Intn(end-start+1) + start
 }
+
+// generate float64 in [start,end), use rand.Seed in init() of this file
+func RandomFloat64(start, end float64) float64 {
+	return rand.Float64()*(end-start) + start
+}

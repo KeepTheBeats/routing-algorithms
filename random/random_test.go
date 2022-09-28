@@ -88,3 +88,10 @@ func TestRandomInt(t *testing.T) {
 		fmt.Println(RandomInt(10, 20))
 	}
 }
+
+func TestRandomFloat64(t *testing.T) {
+	fmt.Println("Generate 40 random float64 in [10,20):")
+	for i := 0; i < 40; i++ {
+		fmt.Println(RandomFloat64(10, 20))
+	}
+}
