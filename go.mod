@@ -1,4 +1,4 @@
-module routing-algorithms
+module github.com/KeepTheBeats/routing-algorithms
 
 go 1.17
 
