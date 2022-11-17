@@ -96,3 +96,21 @@ func RandomInt(start, end int) int {
 func RandomFloat64(start, end float64) float64 {
 	return rand.Float64()*(end-start) + start
 }
+
+// pick m indexes from the slice a
+func RandomPickN(a []int, m int) []int {
+	if m > len(a) {
+		return []int{}
+	}
+	indexes := make([]int, len(a))
+	for i := 0; i < len(indexes); i++ {
+		indexes[i] = i
+	}
+	var result []int
+	for i := 0; i < m; i++ {
+		picked := RandomInt(0, len(indexes)-1)
+		result = append(result, indexes[picked])
+		indexes = append(indexes[:picked], indexes[picked+1:]...)
+	}
+	return result
+}

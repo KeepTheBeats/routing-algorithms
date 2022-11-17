@@ -95,3 +95,42 @@ func TestRandomFloat64(t *testing.T) {
 		fmt.Println(RandomFloat64(10, 20))
 	}
 }
+
+func TestRandomPickN(t *testing.T) {
+	testCases := []struct {
+		name string
+		a    []int
+		m    int
+	}{
+		{
+			name: "case1",
+			a:    []int{1, 3, 6, 70, 6, 2},
+			m:    4,
+		},
+		{
+			name: "case2",
+			a:    []int{1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2},
+			m:    3,
+		},
+		{
+			name: "case3",
+			a:    []int{1, 2, 3, 4, 5},
+			m:    2,
+		},
+		{
+			name: "case4",
+			a:    []int{1, 2, 3, 4, 5, 3, 3, 3, 3, 3, 3, 3},
+			m:    5,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Logf("test: %s", testCase.name)
+		actualResult := RandomPickN(testCase.a, testCase.m)
+		t.Log(actualResult)
+		assert.Equal(t, testCase.m, len(actualResult), fmt.Sprintf("%s: result is not expected", testCase.name))
+	}
+
+	testInt := []int{1, 2, 3, 4, 5, 3, 3, 3, 3, 3, 3, 3}
+	t.Log(RandomPickN(testInt, 7))
+}
