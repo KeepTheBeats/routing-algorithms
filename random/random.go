@@ -114,3 +114,23 @@ func RandomPickN(a []int, m int) []int {
 	}
 	return result
 }
+
+// ExponentialRandom generate a random number following Exponential Distribution, use rand.Seed in init() of this file
+// range is [lowerBound, upperBound] and the expectation is 1/lambda.
+// lambda is "rate parameter"
+func ExponentialRandom(lowerBound, upperBound float64, lambda float64) float64 {
+	if lowerBound > upperBound || float64(1)/lambda < lowerBound || float64(1)/lambda > upperBound {
+		return -1
+	}
+	if !(lambda > 0) {
+		return -1 // lambda must be larger than 0
+	}
+	var result float64
+	for {
+		result = rand.ExpFloat64() * 1 / lambda
+		if result <= upperBound && result >= lowerBound {
+			break
+		}
+	}
+	return result
+}

@@ -134,3 +134,14 @@ func TestRandomPickN(t *testing.T) {
 	testInt := []int{1, 2, 3, 4, 5, 3, 3, 3, 3, 3, 3, 3}
 	t.Log(RandomPickN(testInt, 7))
 }
+
+func TestExponentialRandom(t *testing.T) {
+	fmt.Println("Generate 40 Exponential random float64 in [10,20]:")
+	for i := 0; i < 40; i++ {
+		fmt.Println(ExponentialRandom(3, 35, float64(1)/float64(15)))
+	}
+	fmt.Println("Generate 40 Exponential random float64 in [0,max]:")
+	for i := 0; i < 40; i++ {
+		fmt.Println(ExponentialRandom(0, math.MaxFloat64, float64(1)/float64(15)))
+	}
+}
