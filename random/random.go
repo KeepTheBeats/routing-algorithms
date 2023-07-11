@@ -115,6 +115,18 @@ func RandomPickN(a []int, m int) []int {
 	return result
 }
 
+// randomly pick one from a map
+func RandomMapPick(m map[interface{}]interface{}) (interface{}, interface{}) {
+	k := rand.Intn(len(m))
+	for key, value := range m {
+		if k == 0 {
+			return key, value
+		}
+		k--
+	}
+	panic("Unexpected condition.")
+}
+
 // ExponentialRandom generate a random number following Exponential Distribution, use rand.Seed in init() of this file
 // range is [lowerBound, upperBound] and the expectation is 1/lambda.
 // lambda is "rate parameter"

@@ -135,6 +135,57 @@ func TestRandomPickN(t *testing.T) {
 	t.Log(RandomPickN(testInt, 7))
 }
 
+func TestRandomMapPick(t *testing.T) {
+	testCases := []struct {
+		name string
+		m    map[interface{}]interface{}
+	}{
+		{
+			name: "case1",
+			m: map[interface{}]interface{}{
+				"aaa":  12,
+				"sfsd": "asdfsd",
+				231:    true,
+				231.2:  false,
+			},
+		},
+		{
+			name: "case2",
+			m: map[interface{}]interface{}{
+				"231": 344,
+				"sdf": "1111",
+				2345:  "atre",
+				1.1:   1.1,
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Logf("test: %s", testCase.name)
+		pickedKey, pickedValue := RandomMapPick(testCase.m)
+		t.Log(pickedKey, pickedValue)
+	}
+
+	t.Logf("\nStart to test the order.\n")
+	testOrder := make(map[interface{}]interface{})
+	testOrder["aaa"] = 12
+	testOrder["sdf"] = 23
+	testOrder["12"] = 6.6
+	testOrder[11] = 2.2
+	testOrder[23] = "adaf"
+	testOrder[2.2] = true
+	testOrder[3.3] = false
+	testOrder[true] = "asfafdasfafd"
+	testOrder[false] = "true"
+	for len(testOrder) > 0 {
+		pickedKey, pickedValue := RandomMapPick(testOrder)
+		t.Log(pickedKey, pickedValue)
+		delete(testOrder, pickedKey)
+		t.Logf("The rest of the map: %v\n", testOrder)
+	}
+
+}
+
 func TestExponentialRandom(t *testing.T) {
 	fmt.Println("Generate 40 Exponential random float64 in [10,20]:")
 	for i := 0; i < 40; i++ {
